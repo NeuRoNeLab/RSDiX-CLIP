@@ -14,7 +14,7 @@ from .constants import DEFAULT_TRANSFORMS, IMAGE_FIELD, CAPTION_FIELD
 class RSICD(Dataset):
     """ Remote Sensing Image Captioning Dataset. """
 
-    def __init__(self, annotations_file, img_dir, img_transform=None, target_transform=None):
+    def __init__(self, annotations_file, img_dir, img_transform=None, target_transform=None, bert_text_augmentation=True):
         """
             Arguments:
                 annotations_file (string): Path to the json file containing the annotations.
@@ -22,6 +22,8 @@ class RSICD(Dataset):
                 img_transform (callable, optional): Optional transform to be applied on an image in order to
                     perform data augmentation. If None, random transformations will be applied.
                 target_transform (callable, optional): Optional transform to be applied on a caption.
+                bert_text_augmentation (bool): Boolean to check if to use bert text augmentation or not.
+                    True by default implies that bert will be used to augment text data.
         """
         self.img_captions = pd.read_json(annotations_file)
         self.img_dir = img_dir
@@ -32,7 +34,7 @@ class RSICD(Dataset):
             self.img_transform = DEFAULT_TRANSFORMS
 
         self.target_transform = target_transform
-
+        self.bert_text_augmentation = bert_text_augmentation
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     def __len__(self):
@@ -56,15 +58,16 @@ class RSICD(Dataset):
 
         image = self.img_transform(image)
 
-        # apply synonym replacement
-        nlp = spacy.load("en_core_web_lg")
-        caption = augment_text(data=caption, model_path="bert-base-uncased", action="substitute", aug_min=0,
-                               aug_max=len(sentence["tokens"]), stopwords=nlp.Defaults.stop_words,
-                               device=self.device)[0]
-        # augment data with bert insert action
-        caption = augment_text(data=caption, model_path="bert-base-uncased", action="insert", aug_min=0,
-                               aug_max=4, stopwords=nlp.Defaults.stop_words,
-                               device=self.device)[0]
+        if self.bert_text_augmentation:
+            # apply synonym replacement
+            nlp = spacy.load("en_core_web_lg")
+            caption = augment_text(data=caption, model_path="bert-base-uncased", action="substitute", aug_min=0,
+                                   aug_max=len(sentence["tokens"]), stopwords=nlp.Defaults.stop_words,
+                                   device=self.device)[0]
+            # augment data with bert insert action
+            caption = augment_text(data=caption, model_path="bert-base-uncased", action="insert", aug_min=0,
+                                   aug_max=4, stopwords=nlp.Defaults.stop_words,
+                                   device=self.device)[0]
 
         if self.target_transform:
             caption = self.target_transform(caption)
