@@ -190,6 +190,5 @@ fabric.properties
 # idea folder, uncomment if you don't need it
 .idea
 
-# dataset
-dataset_rsicd.json
-RSICD_images/
+# datasets
+/data
