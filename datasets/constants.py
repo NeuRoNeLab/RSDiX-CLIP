@@ -4,6 +4,8 @@ from .transformations import RandomSharpness
 
 IMAGE_FIELD = "image"
 CAPTION_FIELD = "caption"
+
+IMAGE_DEFAULT_C = 3
 IMAGE_DEFAULT_W = 224
 IMAGE_DEFAULT_H = 224
 
