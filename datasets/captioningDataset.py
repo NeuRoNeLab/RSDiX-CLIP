@@ -15,7 +15,8 @@ from .constants import DEFAULT_TRANSFORMS, IMAGE_FIELD, CAPTION_FIELD, \
 
 
 class CaptioningDataset(Dataset):
-    """"""
+    """ The class itself is used to gather all common functionalities and operations
+        among datasets instances and to standardize how samples are returned. """
 
     def __init__(self, annotations_file, img_dir, img_transform=None, target_transform=None):
         """
