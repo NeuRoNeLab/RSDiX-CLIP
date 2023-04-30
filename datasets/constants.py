@@ -31,3 +31,6 @@ DEFAULT_TRANSFORMS = t.RandomApply(torch.nn.ModuleList(
      t.RandomResizedCrop(size=[IMAGE_DEFAULT_W, IMAGE_DEFAULT_H],
                          scale=(RANDOM_RESIZED_CROP_SCALE_MIN, RANDOM_RESIZED_CROP_SCALE_MAX),
                          ratio=(RANDOM_RESIZED_CROP_RATIO_MIN, RANDOM_RESIZED_CROP_RATIO_MAX), antialias=True)]))
+
+BACK_TRANSLATION_TRANSLATORS = ["google", "bing"]
+BACK_TRANSLATION_LANGUAGES = ["zh", "ar", "ru", "de", "it", "fr", "ar", "es", "ja"]
