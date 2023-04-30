@@ -11,7 +11,9 @@ from torch.utils.data import Dataset
 from PIL import Image
 
 from .constants import DEFAULT_TRANSFORMS, IMAGE_FIELD, CAPTION_FIELD, \
-    IMAGE_DEFAULT_C, IMAGE_DEFAULT_H, IMAGE_DEFAULT_W
+    IMAGE_DEFAULT_C, IMAGE_DEFAULT_H, IMAGE_DEFAULT_W, BACK_TRANSLATION_TRANSLATORS, BACK_TRANSLATION_LANGUAGES
+
+from .transformations import BackTranslation
 
 
 class CaptioningDataset(Dataset):
@@ -76,6 +78,12 @@ class CaptioningDataset(Dataset):
             image = t.Resize((IMAGE_DEFAULT_H, IMAGE_DEFAULT_W), antialias=True)(image)
 
         image = self._img_transform(image)
+
+        # back translation
+        translator = BACK_TRANSLATION_TRANSLATORS[random.randint(0, len(BACK_TRANSLATION_TRANSLATORS) - 1)]
+        to_language = BACK_TRANSLATION_LANGUAGES[random.randint(0, len(BACK_TRANSLATION_LANGUAGES) - 1)]
+        caption = BackTranslation(from_language="en", to_language=to_language,
+                                  translator=translator)(caption)
 
         if self._target_transform:
             caption = self._target_transform(caption)
