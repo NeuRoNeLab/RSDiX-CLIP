@@ -43,7 +43,7 @@ class RandomSharpness(torch.nn.Module):
 
 
 class BackTranslation:
-    """ This class applies back translation on a text with a given probability."""
+    """ This class applies back translation on a text with a given probability. """
 
     def __init__(self, from_language: str, to_language: str, translator: str = "google", p: float = 0.5):
         """

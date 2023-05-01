@@ -20,7 +20,7 @@ class CaptioningDataset(Dataset):
     """ The class itself is used to gather all common functionalities and operations
         among datasets instances and to standardize how samples are returned. """
 
-    def __init__(self, annotations_file, img_dir, img_transform=None, target_transform=None):
+    def __init__(self, annotations_file: str, img_dir: str, img_transform=None, target_transform=None):
         """
             Arguments:
                 annotations_file (string): Path to the file containing the annotations.
@@ -52,7 +52,7 @@ class CaptioningDataset(Dataset):
     def __len__(self) -> int:
         return len(self._img_captions)
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx) -> dict:
         """
             Returns a dictionary containing the image and the caption.
             Arguments:
