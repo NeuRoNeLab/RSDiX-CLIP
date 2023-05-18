@@ -15,7 +15,7 @@ from torch import cuda
 from PIL import Image
 
 from .constants import DEFAULT_TRANSFORMS, IMAGE_FIELD, CAPTION_FIELD, \
-    IMAGE_DEFAULT_C, IMAGE_DEFAULT_H, IMAGE_DEFAULT_W, BACK_TRANSLATION_TRANSLATORS, BACK_TRANSLATION_LANGUAGES
+    IMAGE_DEFAULT_C, IMAGE_DEFAULT_H, IMAGE_DEFAULT_W
 
 from .transformations import BackTranslation
 
@@ -23,6 +23,8 @@ from .transformations import BackTranslation
 class CaptioningDataset(Dataset):
     """ The class itself is used to gather all common functionalities and operations
         among datasets instances and to standardize how samples are returned. """
+
+    __back_translation = BackTranslation(from_language="en")
 
     def __init__(self, annotations_file: str, img_dir: str, img_transform=None, target_transform=None):
         """
@@ -51,13 +53,7 @@ class CaptioningDataset(Dataset):
             self._img_transform = DEFAULT_TRANSFORMS
 
         self._target_transform = target_transform
-        self._device = (
-            "cuda"
-            if cuda.is_available()
-            else "mps"
-            if mps.is_available()
-            else "cpu"
-        )
+        self._device = ("cuda" if cuda.is_available() else "mps" if mps.is_available() else "cpu")
 
     def __len__(self) -> int:
         return len(self._img_captions)
@@ -72,7 +68,6 @@ class CaptioningDataset(Dataset):
             idx = idx.tolist()
 
         row = self._img_captions.iloc[idx, 0]
-        print(row)
         img_name = os.path.join(self._img_dir, row['filename'])
         img_ext = img_name.split(".")[-1]
 
@@ -91,10 +86,7 @@ class CaptioningDataset(Dataset):
         image = self._img_transform(image)
 
         # back translation
-        translator = BACK_TRANSLATION_TRANSLATORS[random.randint(0, len(BACK_TRANSLATION_TRANSLATORS) - 1)]
-        to_language = BACK_TRANSLATION_LANGUAGES[random.randint(0, len(BACK_TRANSLATION_LANGUAGES) - 1)]
-        caption = BackTranslation(from_language="en", to_language=to_language,
-                                  translator=translator)(caption)
+        caption = self.__back_translation(caption)
 
         if self._target_transform:
             caption = self._target_transform(caption)
