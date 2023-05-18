@@ -8,7 +8,7 @@ import pytorch_lightning as pl
 import torch.nn.functional as F
 
 from cosine_annealing_warmup import CosineAnnealingWarmupRestarts
-from model import CLIP
+from .model import CLIP
 
 
 def compute_similarities(i_emb, t_emb):
@@ -26,7 +26,8 @@ def normalize(enc, dim=1):
 
 
 class CustomCLIPWrapper(pl.LightningModule):
-    def __init__(self, model_name: str = "RN50", image_encoder=None, text_encoder=None, avg_word_embs: bool = False):
+    def __init__(self, model_name: str = "RN50", image_encoder=None, text_encoder=None, minibatch_size: int = 512,
+                 avg_word_embs: bool = False):
         super().__init__()
 
         self.isVit = "ViT" in model_name
@@ -34,7 +35,9 @@ class CustomCLIPWrapper(pl.LightningModule):
         with open(f"models/configs/{'Vit' if self.isVit else 'RN'}.yaml") as stream:
             config = yaml.safe_load(stream)[model_name]
 
-        self.config = config
+        self.config = copy.deepcopy(config)
+        self.config["learning_rate"] = float(self.config["learning_rate"])
+        del config["learning_rate"]
         self.model = CLIP(**config)
 
         if image_encoder:
@@ -45,6 +48,7 @@ class CustomCLIPWrapper(pl.LightningModule):
             del self.model.transformer
             self.model.transformer = text_encoder
 
+        self.minibatch_size = minibatch_size
         self.avg_word_embs = avg_word_embs
 
         # init self-distillation model
@@ -162,7 +166,7 @@ class CustomCLIPWrapper(pl.LightningModule):
 
     # Source: https://github.com/PyTorchLightning/pytorch-lightning/issues/5449
     def training_steps_nums(self) -> int:
-        dataset_size = len(self.trainer.train_dataloader())
+        dataset_size = len(self.trainer.train_dataloader)
         num_devices = max(1, self.trainer.num_devices)
 
         return (dataset_size * self.trainer.max_epochs) // (self.trainer.accumulate_grad_batches * num_devices)
@@ -174,8 +178,7 @@ class CustomCLIPWrapper(pl.LightningModule):
         ground_truth = torch.arange(len(image_logit_scores))
         loss = (F.cross_entropy(image_logit_scores, ground_truth)
                 + F.cross_entropy(caption_logit_scores, ground_truth)).div(2)
-        # Add sync_dist=True to sync logging across all GPU workers (may have performance impact)
-        self.log('val_loss', loss, sync_dist=True)
+        self.log('val_loss', loss)
 
     def encode_text(self, inputs, teacher=False):
         if self.avg_word_embs:
@@ -223,6 +226,7 @@ class CustomCLIPWrapper(pl.LightningModule):
         return Q.t()
 
     def configure_optimizers(self) -> dict:
+        self.trainer.fit_loop.setup_data()
         optimizer = torch.optim.AdamW(self.model.parameters(), lr=self.config["learning_rate"],
                                       betas=(0.9, 0.98 if self.isVit else 0.999), eps=1e-6 if self.isVit else 1e-8,
                                       weight_decay=0.2)
