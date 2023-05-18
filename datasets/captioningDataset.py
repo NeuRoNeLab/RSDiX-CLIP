@@ -1,17 +1,22 @@
 import os
 import random
+import json
+import xmltodict
 
 import torch
 import pandas as pd
+import pytorch_lightning as pl
 
 from torchvision.io import read_image
 from torchvision import transforms as t
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, DataLoader
+from torch.backends import mps
+from torch import cuda
 
 from PIL import Image
 
 from .constants import DEFAULT_TRANSFORMS, IMAGE_FIELD, CAPTION_FIELD, \
-    IMAGE_DEFAULT_C, IMAGE_DEFAULT_H, IMAGE_DEFAULT_W, BACK_TRANSLATION_TRANSLATORS, BACK_TRANSLATION_LANGUAGES
+    IMAGE_DEFAULT_C, IMAGE_DEFAULT_H, IMAGE_DEFAULT_W
 
 from .transformations import BackTranslation
 
@@ -20,11 +25,13 @@ class CaptioningDataset(Dataset):
     """ The class itself is used to gather all common functionalities and operations
         among datasets instances and to standardize how samples are returned. """
 
-    def __init__(self, annotations_file, img_dir, img_transform=None, target_transform=None):
+    __back_translation = BackTranslation(from_language="en")
+
+    def __init__(self, annotations_file: str, img_dir: str, img_transform=None, target_transform=None):
         """
             Arguments:
                 annotations_file (string): Path to the file containing the annotations.
-                img_dir (string): Directory with all the images.
+                img_dir (string): Directory with all the NAIS_images.
                 img_transform (callable, optional): Optional transform to be applied on an image in order to
                     perform data augmentation. If None, random transformations will be applied.
                 target_transform (callable, optional): Optional transform to be applied on a caption.
@@ -47,7 +54,7 @@ class CaptioningDataset(Dataset):
             self._img_transform = DEFAULT_TRANSFORMS
 
         self._target_transform = target_transform
-        self._device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        self._device = ("cuda" if cuda.is_available() else "mps" if mps.is_available() else "cpu")
 
     def __len__(self) -> int:
         return len(self._img_captions)
@@ -80,12 +87,49 @@ class CaptioningDataset(Dataset):
         image = self._img_transform(image)
 
         # back translation
-        translator = BACK_TRANSLATION_TRANSLATORS[random.randint(0, len(BACK_TRANSLATION_TRANSLATORS) - 1)]
-        to_language = BACK_TRANSLATION_LANGUAGES[random.randint(0, len(BACK_TRANSLATION_LANGUAGES) - 1)]
-        caption = BackTranslation(from_language="en", to_language=to_language,
-                                  translator=translator)(caption)
+        caption = self.__back_translation(caption)
 
         if self._target_transform:
             caption = self._target_transform(caption)
 
         return {IMAGE_FIELD: image, CAPTION_FIELD: caption}
+
+
+class CaptioningDatasetDataModule(pl.LightningDataModule):
+    def __init__(self, annotations_file: str, img_dir: str, img_transform=None, target_transform=None,
+                 batch_size: int = 32):
+        super().__init__()
+        self._annotations_file = annotations_file
+        self._img_dir = img_dir
+        self._img_transform = img_transform
+        self._target_transform = target_transform
+        self._batch_size = batch_size
+
+    def setup(self, stage: str):
+        self.data = CaptioningDataset(self._annotations_file, self._img_dir, self._img_transform,
+                                      self._target_transform)
+
+    def train_dataloader(self):
+        return DataLoader(self.data, batch_size=self._batch_size)
+
+
+def nais_to_json(annotations_file: str, json_file_name: str = "dataset_nais"):
+    with open(annotations_file) as f:
+        data_dict = xmltodict.parse(f.read())
+
+    data_dict = data_dict["annotations"]
+    images = {"images": []}
+
+    for image in data_dict["image"]:
+        image_data = {"filename": image["@name"], "imgid": int(image["@id"])}
+        sentences = []
+        for mask in image["mask"]:
+            sentences.append({"raw": mask["@label"]})
+        image_data["sentences"] = sentences
+        images["images"].append(image_data)
+
+    # get annotations_file directory
+    data_dir = os.path.dirname(annotations_file)
+    print(type(images))
+    with open(f"{data_dir}/{json_file_name}.json", "w") as f:
+        json.dump(images, f, indent=4)
