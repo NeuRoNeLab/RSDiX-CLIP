@@ -7,6 +7,8 @@ import pandas as pd
 from torchvision.io import read_image
 from torchvision import transforms as t
 from torch.utils.data import Dataset
+from torch.backends import mps
+from torch import cuda
 
 from PIL import Image
 
@@ -20,7 +22,7 @@ class CaptioningDataset(Dataset):
     """ The class itself is used to gather all common functionalities and operations
         among datasets instances and to standardize how samples are returned. """
 
-    def __init__(self, annotations_file, img_dir, img_transform=None, target_transform=None):
+    def __init__(self, annotations_file: str, img_dir: str, img_transform=None, target_transform=None):
         """
             Arguments:
                 annotations_file (string): Path to the file containing the annotations.
@@ -47,12 +49,18 @@ class CaptioningDataset(Dataset):
             self._img_transform = DEFAULT_TRANSFORMS
 
         self._target_transform = target_transform
-        self._device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        self._device = (
+            "cuda"
+            if cuda.is_available()
+            else "mps"
+            if mps.is_available()
+            else "cpu"
+        )
 
     def __len__(self) -> int:
         return len(self._img_captions)
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx) -> dict:
         """
             Returns a dictionary containing the image and the caption.
             Arguments:

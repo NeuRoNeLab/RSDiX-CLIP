@@ -8,9 +8,15 @@ from torchvision.transforms import functional as F
 
 
 class RandomSharpness(torch.nn.Module):
-    """"""
+    """ This class adjusts an image sharpness with a given probability. """
 
     def __init__(self, mn: float = 0.5, mx: float = 1.5, p: float = 0.5):
+        """
+            Arguments:
+                 mn (float): the lower bound limit of the range in which the sharpness value is uniformly chosen.
+                 mx (float): the upper bound limit of the range in which the sharpness value is uniformly chosen
+                 p (float): the probability with which to adjust the sharpness.
+        """
         super().__init__()
         self.__mn = mn
         self.__mx = mx
@@ -37,9 +43,16 @@ class RandomSharpness(torch.nn.Module):
 
 
 class BackTranslation:
-    """"""
+    """ This class applies back translation on a text with a given probability. """
 
     def __init__(self, from_language: str, to_language: str, translator: str = "google", p: float = 0.5):
+        """
+            Arguments:
+                 from_language (str): the language to translate from .
+                 to_language (str): the language to translate to.
+                 translator (str): the translator to use. (eg. bing, google, alibaba)
+                 p (float): the probability with which to apply back translation.
+        """
         self.__from_language = from_language
         self.__to_language = to_language
         self.__translator = translator
@@ -61,7 +74,7 @@ class BackTranslation:
     def p(self) -> float:
         return self.__p
 
-    def _translate(self, sample, from_language=None, to_language=None):
+    def _translate(self, sample, from_language=None, to_language=None) -> str:
         if from_language is None:
             from_language = self.__from_language
         if to_language is None:
