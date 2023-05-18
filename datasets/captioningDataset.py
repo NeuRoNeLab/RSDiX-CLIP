@@ -1,5 +1,7 @@
 import os
 import random
+import json
+import xmltodict
 
 import torch
 import pandas as pd
@@ -26,7 +28,7 @@ class CaptioningDataset(Dataset):
         """
             Arguments:
                 annotations_file (string): Path to the file containing the annotations.
-                img_dir (string): Directory with all the images.
+                img_dir (string): Directory with all the NAIS_images.
                 img_transform (callable, optional): Optional transform to be applied on an image in order to
                     perform data augmentation. If None, random transformations will be applied.
                 target_transform (callable, optional): Optional transform to be applied on a caption.
@@ -70,6 +72,7 @@ class CaptioningDataset(Dataset):
             idx = idx.tolist()
 
         row = self._img_captions.iloc[idx, 0]
+        print(row)
         img_name = os.path.join(self._img_dir, row['filename'])
         img_ext = img_name.split(".")[-1]
 
@@ -97,3 +100,25 @@ class CaptioningDataset(Dataset):
             caption = self._target_transform(caption)
 
         return {IMAGE_FIELD: image, CAPTION_FIELD: caption}
+
+
+def nais_to_json(annotations_file: str, json_file_name: str = "dataset_nais"):
+    with open(annotations_file) as f:
+        data_dict = xmltodict.parse(f.read())
+
+    data_dict = data_dict["annotations"]
+    images = {"images": []}
+
+    for image in data_dict["image"]:
+        image_data = {"filename": image["@name"], "imgid": int(image["@id"])}
+        sentences = []
+        for mask in image["mask"]:
+            sentences.append({"raw": mask["@label"]})
+        image_data["sentences"] = sentences
+        images["images"].append(image_data)
+
+    # get annotations_file directory
+    data_dir = os.path.dirname(annotations_file)
+    print(type(images))
+    with open(f"{data_dir}/{json_file_name}.json", "w") as f:
+        json.dump(images, f, indent=4)
