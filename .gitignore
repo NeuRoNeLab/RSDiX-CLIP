@@ -192,3 +192,5 @@ fabric.properties
 
 # datasets
 /data
+
+/lightning_logs

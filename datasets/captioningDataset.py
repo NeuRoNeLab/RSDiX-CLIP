@@ -59,7 +59,7 @@ class CaptioningDataset(Dataset):
     def __len__(self) -> int:
         return len(self._img_captions)
 
-    def __getitem__(self, idx) -> dict:
+    def __getitem__(self, idx):
         """
             Returns a dictionary containing the image and the caption.
             Arguments:
