@@ -5,10 +5,11 @@ import xmltodict
 
 import torch
 import pandas as pd
+import pytorch_lightning as pl
 
 from torchvision.io import read_image
 from torchvision import transforms as t
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, DataLoader
 from torch.backends import mps
 from torch import cuda
 
@@ -92,6 +93,24 @@ class CaptioningDataset(Dataset):
             caption = self._target_transform(caption)
 
         return {IMAGE_FIELD: image, CAPTION_FIELD: caption}
+
+
+class CaptioningDatasetDataModule(pl.LightningDataModule):
+    def __init__(self, annotations_file: str, img_dir: str, img_transform=None, target_transform=None,
+                 batch_size: int = 32):
+        super().__init__()
+        self._annotations_file = annotations_file
+        self._img_dir = img_dir
+        self._img_transform = img_transform
+        self._target_transform = target_transform
+        self._batch_size = batch_size
+
+    def setup(self, stage: str):
+        self.data = CaptioningDataset(self._annotations_file, self._img_dir, self._img_transform,
+                                      self._target_transform)
+
+    def train_dataloader(self):
+        return DataLoader(self.data, batch_size=self._batch_size)
 
 
 def nais_to_json(annotations_file: str, json_file_name: str = "dataset_nais"):

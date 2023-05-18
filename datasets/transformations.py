@@ -118,7 +118,6 @@ class BackTranslation:
         # check if API call's timeout has passed, if so translate otherwise choose another API and repeat.
         # if no API call's timeout has passed, return the normal sample.
         if bit == 1 and self._is_api_callable():
-
             try:
                 return self._translate(self._translate(sample), from_language=self.__to_language,
                                        to_language=self.from_language)

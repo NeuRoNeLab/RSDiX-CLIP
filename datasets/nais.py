@@ -1,7 +1,7 @@
-from .captioningDataset import CaptioningDataset
+from .captioningDataset import CaptioningDatasetDataModule
 
 
-class NAIS(CaptioningDataset):
+class NAIS(CaptioningDatasetDataModule):
     """ NAIS Dataset. """
 
     def __init__(self, annotations_file: str, img_dir: str, img_transform=None, target_transform=None):
