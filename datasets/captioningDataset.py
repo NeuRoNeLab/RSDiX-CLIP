@@ -3,12 +3,11 @@ import random
 
 import torch
 import pandas as pd
+import pytorch_lightning as pl
 
 from torchvision.io import read_image
 from torchvision import transforms as t
-from torch.utils.data import Dataset
-from torch.backends import mps
-from torch import cuda
+from torch.utils.data import Dataset, DataLoader
 
 from PIL import Image
 
@@ -22,7 +21,7 @@ class CaptioningDataset(Dataset):
     """ The class itself is used to gather all common functionalities and operations
         among datasets instances and to standardize how samples are returned. """
 
-    def __init__(self, annotations_file: str, img_dir: str, img_transform=None, target_transform=None):
+    def __init__(self, annotations_file, img_dir, img_transform=None, target_transform=None):
         """
             Arguments:
                 annotations_file (string): Path to the file containing the annotations.
@@ -46,21 +45,17 @@ class CaptioningDataset(Dataset):
         if img_transform:
             self._img_transform = img_transform
         else:
+            print(DEFAULT_TRANSFORMS)
             self._img_transform = DEFAULT_TRANSFORMS
+            print(self._img_transform)
 
         self._target_transform = target_transform
-        self._device = (
-            "cuda"
-            if cuda.is_available()
-            else "mps"
-            if mps.is_available()
-            else "cpu"
-        )
+        self._device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     def __len__(self) -> int:
         return len(self._img_captions)
 
-    def __getitem__(self, idx) -> dict:
+    def __getitem__(self, idx):
         """
             Returns a dictionary containing the image and the caption.
             Arguments:
@@ -85,6 +80,7 @@ class CaptioningDataset(Dataset):
         if list(image.shape) != [IMAGE_DEFAULT_C, IMAGE_DEFAULT_H, IMAGE_DEFAULT_W]:
             image = t.Resize((IMAGE_DEFAULT_H, IMAGE_DEFAULT_W), antialias=True)(image)
 
+        print(self._img_transform)
         image = self._img_transform(image)
 
         # back translation
@@ -97,3 +93,21 @@ class CaptioningDataset(Dataset):
             caption = self._target_transform(caption)
 
         return {IMAGE_FIELD: image, CAPTION_FIELD: caption}
+
+
+class CaptioningDatasetDataModule(pl.LightningDataModule):
+    def __init__(self, annotations_file: str, img_dir: str, img_transform=None, target_transform=None,
+                 batch_size: int = 32):
+        super().__init__()
+        self._annotations_file = annotations_file
+        self._img_dir = img_dir
+        self._img_transform = img_transform
+        self._target_transform = target_transform
+        self._batch_size = batch_size
+
+    def setup(self, stage: str):
+        self.data = CaptioningDataset(self._annotations_file, self._img_dir, self._img_transform,
+                                      self._target_transform)
+
+    def train_dataloader(self):
+        return DataLoader(self.data, batch_size=self._batch_size)
