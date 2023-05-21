@@ -46,7 +46,7 @@ class RandomSharpness(torch.nn.Module):
 class BackTranslation:
     """ This class applies back translation on a text with a given probability. """
     __api_timestamps = {}
-    BACK_TRANSLATION_TRANSLATORS = ["google", "bing", "alibaba"]
+    BACK_TRANSLATION_TRANSLATORS = ["google", "bing"]
     BACK_TRANSLATION_LANGUAGES = ["zh", "ar", "ru", "de", "it", "fr", "ar", "es", "ja"]
 
     def __init__(self, from_language: str, p: float = 0.5, timeout: float = 1.0):
