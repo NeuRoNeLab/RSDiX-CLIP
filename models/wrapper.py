@@ -54,6 +54,42 @@ class CustomCLIPWrapper(pl.LightningModule):
         # init self-distillation model
         self.teacher = copy.deepcopy(self.model)
 
+    def _prepare_data(self, img_data, caption_data, teacher=False):
+        ims = [F.normalize(self.model.encode_image(im), dim=1) for im in img_data]
+        txt = [F.normalize(self.encode_text(t, teacher=teacher), dim=1) for t in caption_data]
+
+        ims, txt = self.all_gather(torch.cat(ims)), self.all_gather(torch.cat(txt))
+
+        if len(ims.shape) == 3:
+            ims = list(ims)
+            txt = list(txt)
+        else:
+            ims = [ims]
+            txt = [txt]
+
+        return ims, txt
+
+    def _compute_kl_div(self, logit_scores, img_target, txt_target):
+        return (F.kl_div(F.log_softmax(logit_scores * self.sink_temp, dim=-1), img_target, reduction='batchmean')
+                + F.kl_div(F.log_softmax(logit_scores.t() * self.sink_temp, dim=-1), txt_target,
+                           reduction='batchmean')) / 2 * self.kl_coeff
+
+    def _compute_training_loss(self, encode_f, data_mbs, data, ground_truth, txt, img_target, txt_target,
+                               is_text=False, ims=None):
+        for j, mb in enumerate(data_mbs):
+            images_tmp = copy.deepcopy(data)
+            images_tmp[self.global_rank][j * self.minibatch_size:(j + 1) * self.minibatch_size] = F.normalize(
+                encode_f(mb), dim=1)
+            if is_text:
+                image_logit_scores_notemp = torch.cat(ims) @ torch.cat(images_tmp).t()
+            else:
+                image_logit_scores_notemp = torch.cat(images_tmp) @ torch.cat(txt).t()
+            image_logit_scores = image_logit_scores_notemp * self.model.logit_scale.exp()
+            loss = (F.cross_entropy(image_logit_scores, ground_truth) + F.cross_entropy(image_logit_scores.t(),
+                                                                                        ground_truth)) / 2
+            loss += self._compute_kl_div(image_logit_scores_notemp, img_target, txt_target)
+            self.manual_backward(loss)
+
     # activates training loop
     # Training loss: https://github.com/openai/CLIP/issues/83
     # Multi-GPU support: https://github.com/MicPie/clasp
@@ -76,18 +112,7 @@ class CustomCLIPWrapper(pl.LightningModule):
 
         # calculate original statistics
         with torch.no_grad():
-            ims = [F.normalize(self.model.encode_image(im), dim=1) for im in image_mbs]
-            txt = [F.normalize(self.encode_text(t), dim=1) for t in text_mbs]
-            # gather from all GPUs
-            ims = self.all_gather(torch.cat(ims))
-            txt = self.all_gather(torch.cat(txt))
-
-            if len(ims.shape) == 3:
-                ims = list(ims)
-                txt = list(txt)
-            else:
-                ims = [ims]
-                txt = [txt]
+            ims, txt = self._prepare_data(image_mbs, text_mbs)
 
             image_logit_scores_notemp = torch.cat(ims) @ torch.cat(txt).t()
             image_logit_scores = image_logit_scores_notemp * self.model.logit_scale.exp()
@@ -97,65 +122,31 @@ class CustomCLIPWrapper(pl.LightningModule):
             acc_i = (torch.argmax(image_logit_scores, 1) == ground_truth).sum()
             acc_t = (torch.argmax(image_logit_scores, 0) == ground_truth).sum()
             # calculate teacher
-            teacher_ims = [F.normalize(self.teacher.encode_image(im), dim=1) for im in image_mbs]
-            teacher_txt = [F.normalize(self.encode_text(t, teacher=True), dim=1) for t in text_mbs]
+            teacher_ims, teacher_txt = self._prepare_data(image_mbs, text_mbs, teacher=True)
 
-            teacher_ims = self.all_gather(torch.cat(teacher_ims))
-            teacher_txt = self.all_gather(torch.cat(teacher_txt))
-
-            if len(teacher_ims.shape) == 3:
-                teacher_ims = list(teacher_ims)
-                teacher_txt = list(teacher_txt)
-            else:
-                teacher_ims = [teacher_ims]
-                teacher_txt = [teacher_txt]
-
-            sim_ii, sim_tt, sim_it, sim_ti = self.compute_similarities(torch.cat(teacher_ims), torch.cat(teacher_txt))
+            sim_ii, sim_tt, sim_it, sim_ti = self.compute_similarities(torch.cat(teacher_ims),
+                                                                       torch.cat(teacher_txt))
 
             # optimal transport
             img_cost = - (sim_ii + sim_tt + sim_it)
             txt_cost = - (sim_ii + sim_tt + sim_ti)
             img_target = self.sinkhorn(img_cost)
             txt_target = self.sinkhorn(txt_cost)
-            loss += (F.kl_div(F.log_softmax(image_logit_scores_notemp * self.sink_temp, dim=-1), img_target,
-                              reduction='batchmean') + F.kl_div(
-                F.log_softmax(image_logit_scores_notemp.t() * self.sink_temp, dim=-1), txt_target,
-                reduction='batchmean')) / 2 * self.kl_coeff
-            self.log_dict({'loss': loss / len(ims), 'acc': (acc_i + acc_t) / 2 / len(image) / len(ims)}, prog_bar=True)
+            loss += self._compute_kl_div(image_logit_scores_notemp, img_target, txt_target)
+            self.log_dict({'loss': loss / len(ims), 'acc': (acc_i + acc_t) / 2 / len(image) / len(ims)},
+                          prog_bar=True)
 
         if isinstance(optimizer, list):
             optimizer = optimizer[0]
         optimizer.zero_grad()
 
         # image loss
-        for j, mb in enumerate(image_mbs):
-            images_tmp = copy.deepcopy(ims)
-            images_tmp[self.global_rank][j * self.minibatch_size:(j + 1) * self.minibatch_size] = F.normalize(
-                self.model.encode_image(mb), dim=1)
-            image_logit_scores_notemp = torch.cat(images_tmp) @ torch.cat(txt).t()
-            image_logit_scores = image_logit_scores_notemp * self.model.logit_scale.exp()
-            loss = (F.cross_entropy(image_logit_scores, ground_truth) + F.cross_entropy(image_logit_scores.t(),
-                                                                                        ground_truth)) / 2
-            loss += (F.kl_div(F.log_softmax(image_logit_scores_notemp * self.sink_temp, dim=-1), img_target,
-                              reduction='batchmean') + F.kl_div(
-                F.log_softmax(image_logit_scores_notemp.t() * self.sink_temp, dim=-1), txt_target,
-                reduction='batchmean')) / 2 * self.kl_coeff
-            self.manual_backward(loss)
-
-        # text loss
-        for j, mb in enumerate(text_mbs):
-            text_tmp = copy.deepcopy(txt)
-            text_tmp[self.global_rank][j * self.minibatch_size:(j + 1) * self.minibatch_size] = F.normalize(
-                self.encode_text(mb), dim=1)
-            caption_logit_scores_notemp = torch.cat(ims) @ torch.cat(text_tmp).t()
-            caption_logit_scores = caption_logit_scores_notemp * self.model.logit_scale.exp()
-            loss = (F.cross_entropy(caption_logit_scores, ground_truth) + F.cross_entropy(caption_logit_scores.t(),
-                                                                                          ground_truth)) / 2
-            loss += (F.kl_div(F.log_softmax(caption_logit_scores_notemp * self.sink_temp, dim=-1), img_target,
-                              reduction='batchmean') + F.kl_div(
-                F.log_softmax(caption_logit_scores_notemp.t() * self.sink_temp, dim=-1), txt_target,
-                reduction='batchmean')) / 2 * self.kl_coeff
-            self.manual_backward(loss)
+        self._compute_training_loss(self.model.encode_image, image_mbs, ims, ground_truth, txt, img_target,
+                                    txt_target)
+        # caption loss
+        self._compute_training_loss(self.model.encode_text, text_mbs, txt, ground_truth, txt, img_target,
+                                    txt_target,
+                                    True, ims)
 
         optimizer.step()
         lr_scheduler = self.lr_schedulers()
