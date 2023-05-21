@@ -130,6 +130,9 @@ def nais_to_json(annotations_file: str, json_file_name: str = "dataset_nais"):
 
     # get annotations_file directory
     data_dir = os.path.dirname(annotations_file)
-    print(type(images))
     with open(f"{data_dir}/{json_file_name}.json", "w") as f:
         json.dump(images, f, indent=4)
+
+
+if __name__ == "__main__":
+    nais_to_json("../data/NAIS/annotations_finale.xml")
