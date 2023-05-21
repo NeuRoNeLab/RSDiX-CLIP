@@ -3,7 +3,7 @@ import torch
 from argparse import ArgumentParser
 from pytorch_lightning import Trainer
 from torchvision.models import resnet50, ResNet50_Weights
-from transformers import AutoTokenizer, AutoModel
+from transformers import AutoModel
 
 from models import CustomCLIPWrapper
 from datasets.rsicd import RSICD
@@ -13,7 +13,6 @@ def main(hparams):
     img_encoder = resnet50(weights=ResNet50_Weights.IMAGENET1K_V2)
     img_encoder.fc = torch.nn.Linear(2048, 768)
 
-    tokenizer = AutoTokenizer.from_pretrained("johngiorgi/declutr-sci-base")
     txt_encoder = AutoModel.from_pretrained("johngiorgi/declutr-sci-base")
 
     if hparams.minibatch_size < 1:
