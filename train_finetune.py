@@ -21,7 +21,7 @@ def main(hparams):
 
     trainer = Trainer(precision=hparams.precision, accelerator=hparams.accelerator, devices=hparams.devices,
                       max_epochs=hparams.max_epochs)
-    dm = RSICD("./data/RSICD/dataset_rsicd.json", "./data/RSICD/RSICD_images")
+    dm = RSICD("./data/RSICD/dataset_rsicd.json", "./data/RSICD/RSICD_images", custom_tokenizer=tokenizer)
     model = CustomCLIPWrapper(model_name=hparams.model_name, image_encoder=img_encoder, text_encoder=txt_encoder,
                               minibatch_size=hparams.minibatch_size, avg_word_embs=True)
     trainer.fit(model, train_dataloaders=dm)

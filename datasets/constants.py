@@ -30,4 +30,4 @@ DEFAULT_TRANSFORMS = t.RandomApply(torch.nn.ModuleList(
                    saturation=(COLOR_JITTER_SATURATION_MIN, COLOR_JITTER_BRIGHTNESS_MAX)),
      t.RandomResizedCrop(size=[IMAGE_DEFAULT_W, IMAGE_DEFAULT_H],
                          scale=(RANDOM_RESIZED_CROP_SCALE_MIN, RANDOM_RESIZED_CROP_SCALE_MAX),
-                         ratio=(RANDOM_RESIZED_CROP_RATIO_MIN, RANDOM_RESIZED_CROP_RATIO_MAX), antialias=True)]))
+                         ratio=(RANDOM_RESIZED_CROP_RATIO_MIN, RANDOM_RESIZED_CROP_RATIO_MAX))]))

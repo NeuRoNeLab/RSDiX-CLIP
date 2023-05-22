@@ -27,7 +27,7 @@ def normalize(enc, dim=1):
 
 class CustomCLIPWrapper(pl.LightningModule):
     def __init__(self, model_name: str = "RN50", image_encoder=None, text_encoder=None, minibatch_size: int = 512,
-                 avg_word_embs: bool = False):
+                 kl_coeff: float = 1.0, avg_word_embs: bool = False):
         super().__init__()
 
         self.isVit = "ViT" in model_name
@@ -50,9 +50,51 @@ class CustomCLIPWrapper(pl.LightningModule):
 
         self.minibatch_size = minibatch_size
         self.avg_word_embs = avg_word_embs
+        self.sink_temp = torch.nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
 
         # init self-distillation model
         self.teacher = copy.deepcopy(self.model)
+        self.kl_coeff = kl_coeff
+
+        # enable manual_backward
+        self.automatic_optimization = False
+
+    def _prepare_data(self, img_data, caption_data, teacher=False):
+        ims = [F.normalize(self.model.encode_image(im), dim=1) for im in img_data]
+        txt = [F.normalize(self.encode_text(t, teacher=teacher), dim=1) for t in caption_data]
+
+        ims, txt = self.all_gather(torch.cat(ims)), self.all_gather(torch.cat(txt))
+
+        if len(ims.shape) == 3:
+            ims = list(ims)
+            txt = list(txt)
+        else:
+            ims = [ims]
+            txt = [txt]
+
+        return ims, txt
+
+    def _compute_kl_div(self, logit_scores, img_target, txt_target):
+        return (F.kl_div(F.log_softmax(logit_scores * self.sink_temp, dim=-1), img_target, reduction='batchmean')
+                + F.kl_div(F.log_softmax(logit_scores.t() * self.sink_temp, dim=-1), txt_target,
+                           reduction='batchmean')) / 2 * self.kl_coeff
+
+    def _compute_training_loss(self, encode_f, data_mbs, data, ground_truth, txt, img_target, txt_target,
+                               is_text=False, ims=None):
+        for j, mb in enumerate(data_mbs):
+            images_tmp = copy.deepcopy(data)
+            images_tmp[self.global_rank][j * self.minibatch_size:(j + 1) * self.minibatch_size] = F.normalize(
+                encode_f(mb), dim=1)
+            if is_text:
+                image_logit_scores_notemp = torch.cat(ims) @ torch.cat(images_tmp).t()
+            else:
+                image_logit_scores_notemp = torch.cat(images_tmp) @ torch.cat(txt).t()
+
+            image_logit_scores = image_logit_scores_notemp * self.model.logit_scale.exp()
+            loss = (F.cross_entropy(image_logit_scores, ground_truth) + F.cross_entropy(image_logit_scores.t(),
+                                                                                        ground_truth)) / 2
+            loss += self._compute_kl_div(image_logit_scores_notemp, img_target, txt_target)
+            self.manual_backward(loss)
 
     # activates training loop
     # Training loss: https://github.com/openai/CLIP/issues/83
@@ -76,18 +118,7 @@ class CustomCLIPWrapper(pl.LightningModule):
 
         # calculate original statistics
         with torch.no_grad():
-            ims = [F.normalize(self.model.encode_image(im), dim=1) for im in image_mbs]
-            txt = [F.normalize(self.encode_text(t), dim=1) for t in text_mbs]
-            # gather from all GPUs
-            ims = self.all_gather(torch.cat(ims))
-            txt = self.all_gather(torch.cat(txt))
-
-            if len(ims.shape) == 3:
-                ims = list(ims)
-                txt = list(txt)
-            else:
-                ims = [ims]
-                txt = [txt]
+            ims, txt = self._prepare_data(image_mbs, text_mbs)
 
             image_logit_scores_notemp = torch.cat(ims) @ torch.cat(txt).t()
             image_logit_scores = image_logit_scores_notemp * self.model.logit_scale.exp()
@@ -97,65 +128,30 @@ class CustomCLIPWrapper(pl.LightningModule):
             acc_i = (torch.argmax(image_logit_scores, 1) == ground_truth).sum()
             acc_t = (torch.argmax(image_logit_scores, 0) == ground_truth).sum()
             # calculate teacher
-            teacher_ims = [F.normalize(self.teacher.encode_image(im), dim=1) for im in image_mbs]
-            teacher_txt = [F.normalize(self.encode_text(t, teacher=True), dim=1) for t in text_mbs]
+            teacher_ims, teacher_txt = self._prepare_data(image_mbs, text_mbs, teacher=True)
 
-            teacher_ims = self.all_gather(torch.cat(teacher_ims))
-            teacher_txt = self.all_gather(torch.cat(teacher_txt))
-
-            if len(teacher_ims.shape) == 3:
-                teacher_ims = list(teacher_ims)
-                teacher_txt = list(teacher_txt)
-            else:
-                teacher_ims = [teacher_ims]
-                teacher_txt = [teacher_txt]
-
-            sim_ii, sim_tt, sim_it, sim_ti = self.compute_similarities(torch.cat(teacher_ims), torch.cat(teacher_txt))
+            sim_ii, sim_tt, sim_it, sim_ti = compute_similarities(torch.cat(teacher_ims), torch.cat(teacher_txt))
 
             # optimal transport
             img_cost = - (sim_ii + sim_tt + sim_it)
             txt_cost = - (sim_ii + sim_tt + sim_ti)
             img_target = self.sinkhorn(img_cost)
             txt_target = self.sinkhorn(txt_cost)
-            loss += (F.kl_div(F.log_softmax(image_logit_scores_notemp * self.sink_temp, dim=-1), img_target,
-                              reduction='batchmean') + F.kl_div(
-                F.log_softmax(image_logit_scores_notemp.t() * self.sink_temp, dim=-1), txt_target,
-                reduction='batchmean')) / 2 * self.kl_coeff
-            self.log_dict({'loss': loss / len(ims), 'acc': (acc_i + acc_t) / 2 / len(image) / len(ims)}, prog_bar=True)
+            loss += self._compute_kl_div(image_logit_scores_notemp, img_target, txt_target)
+            self.log_dict({'loss': loss / len(ims), 'acc': (acc_i + acc_t) / 2 / len(image) / len(ims)},
+                          prog_bar=True)
 
         if isinstance(optimizer, list):
             optimizer = optimizer[0]
         optimizer.zero_grad()
 
         # image loss
-        for j, mb in enumerate(image_mbs):
-            images_tmp = copy.deepcopy(ims)
-            images_tmp[self.global_rank][j * self.minibatch_size:(j + 1) * self.minibatch_size] = F.normalize(
-                self.model.encode_image(mb), dim=1)
-            image_logit_scores_notemp = torch.cat(images_tmp) @ torch.cat(txt).t()
-            image_logit_scores = image_logit_scores_notemp * self.model.logit_scale.exp()
-            loss = (F.cross_entropy(image_logit_scores, ground_truth) + F.cross_entropy(image_logit_scores.t(),
-                                                                                        ground_truth)) / 2
-            loss += (F.kl_div(F.log_softmax(image_logit_scores_notemp * self.sink_temp, dim=-1), img_target,
-                              reduction='batchmean') + F.kl_div(
-                F.log_softmax(image_logit_scores_notemp.t() * self.sink_temp, dim=-1), txt_target,
-                reduction='batchmean')) / 2 * self.kl_coeff
-            self.manual_backward(loss)
-
-        # text loss
-        for j, mb in enumerate(text_mbs):
-            text_tmp = copy.deepcopy(txt)
-            text_tmp[self.global_rank][j * self.minibatch_size:(j + 1) * self.minibatch_size] = F.normalize(
-                self.encode_text(mb), dim=1)
-            caption_logit_scores_notemp = torch.cat(ims) @ torch.cat(text_tmp).t()
-            caption_logit_scores = caption_logit_scores_notemp * self.model.logit_scale.exp()
-            loss = (F.cross_entropy(caption_logit_scores, ground_truth) + F.cross_entropy(caption_logit_scores.t(),
-                                                                                          ground_truth)) / 2
-            loss += (F.kl_div(F.log_softmax(caption_logit_scores_notemp * self.sink_temp, dim=-1), img_target,
-                              reduction='batchmean') + F.kl_div(
-                F.log_softmax(caption_logit_scores_notemp.t() * self.sink_temp, dim=-1), txt_target,
-                reduction='batchmean')) / 2 * self.kl_coeff
-            self.manual_backward(loss)
+        self._compute_training_loss(encode_f=self.model.encode_image, data_mbs=image_mbs, data=ims,
+                                    ground_truth=ground_truth, txt=txt, img_target=img_target, txt_target=txt_target)
+        # caption loss
+        self._compute_training_loss(encode_f=self.encode_text, data_mbs=text_mbs, data=txt,
+                                    ground_truth=ground_truth, txt=txt, img_target=img_target, txt_target=txt_target,
+                                    is_text=True, ims=ims)
 
         optimizer.step()
         lr_scheduler = self.lr_schedulers()
@@ -200,7 +196,7 @@ class CustomCLIPWrapper(pl.LightningModule):
 
     def update_teacher(self):
         for teacher, student in zip(self.teacher.parameters(), self.model.parameters()):
-            teacher.data.copy_(self.ema(student.data, teacher.data))
+            teacher.data.copy_(ema(student.data, teacher.data))
 
     # Source: https://github.com/facebookresearch/swav/blob/5e073db0cc69dea22aa75e92bfdd75011e888f28/main_swav.py#L354
     def sinkhorn(self, out):

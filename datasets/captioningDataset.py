@@ -1,23 +1,20 @@
+import json
 import os
 import random
-import json
-import xmltodict
 
-import torch
+import clip
 import pandas as pd
 import pytorch_lightning as pl
-
-from torchvision.io import read_image
-from torchvision import transforms as t
-from torch.utils.data import Dataset, DataLoader
-from torch.backends import mps
-from torch import cuda
-
+import torch
+import xmltodict
 from PIL import Image
+from torch import cuda
+from torch.backends import mps
+from torch.utils.data import Dataset, DataLoader
+from torchvision import transforms as t
+from torchvision.io import read_image
 
-from .constants import DEFAULT_TRANSFORMS, IMAGE_FIELD, CAPTION_FIELD, \
-    IMAGE_DEFAULT_C, IMAGE_DEFAULT_H, IMAGE_DEFAULT_W
-
+from .constants import DEFAULT_TRANSFORMS, IMAGE_DEFAULT_C, IMAGE_DEFAULT_H, IMAGE_DEFAULT_W
 from .transformations import BackTranslation
 
 
@@ -27,7 +24,8 @@ class CaptioningDataset(Dataset):
 
     __back_translation = BackTranslation(from_language="en")
 
-    def __init__(self, annotations_file: str, img_dir: str, img_transform=None, target_transform=None):
+    def __init__(self, annotations_file: str, img_dir: str, img_transform=None, target_transform=None,
+                 custom_tokenizer: bool = False):
         """
             Arguments:
                 annotations_file (string): Path to the file containing the annotations.
@@ -55,6 +53,7 @@ class CaptioningDataset(Dataset):
 
         self._target_transform = target_transform
         self._device = ("cuda" if cuda.is_available() else "mps" if mps.is_available() else "cpu")
+        self._customer_tokenizer = custom_tokenizer
 
     def __len__(self) -> int:
         return len(self._img_captions)
@@ -92,25 +91,52 @@ class CaptioningDataset(Dataset):
         if self._target_transform:
             caption = self._target_transform(caption)
 
-        return {IMAGE_FIELD: image, CAPTION_FIELD: caption}
+        tokenized_caption = caption if self._customer_tokenizer else clip.tokenize(caption)[0]
+
+        return image, caption
 
 
 class CaptioningDatasetDataModule(pl.LightningDataModule):
     def __init__(self, annotations_file: str, img_dir: str, img_transform=None, target_transform=None,
-                 batch_size: int = 32):
+                 batch_size: int = 32, num_workers: int = 0, shuffle: bool = False, custom_tokenizer=None):
+        """
+        Arguments:
+            annotations_file (string): Path to the file containing the annotations.
+            img_dir (string): Directory with all the NAIS_images.
+            img_transform (callable, optional): Optional transform to be applied on an image in order to perform data
+                augmentation. If None, random transformations will be applied.
+            target_transform (callable, optional): Optional transform to be applied on a caption.
+            batch_size (int): The batch size of each dataloader.
+            num_workers (int, optional): The number of workers in the DataLoader. Defaults to 0.
+            shuffle (bool, optional): Whether to have shuffling behavior during sampling. Defaults to False.
+            custom_tokenizer (transformers.AutoTokenizer, optional): The tokenizer to use on the text. Defaults to None.
+        """
         super().__init__()
         self._annotations_file = annotations_file
         self._img_dir = img_dir
         self._img_transform = img_transform
         self._target_transform = target_transform
         self._batch_size = batch_size
+        self._num_workers = num_workers
+        self._shuffle = shuffle
+        self._custom_tokenizer = custom_tokenizer
 
     def setup(self, stage: str):
-        self.data = CaptioningDataset(self._annotations_file, self._img_dir, self._img_transform,
-                                      self._target_transform)
+        self._dataset = CaptioningDataset(self._annotations_file, self._img_dir, self._img_transform,
+                                          self._target_transform, self._custom_tokenizer is not None)
 
     def train_dataloader(self):
-        return DataLoader(self.data, batch_size=self._batch_size)
+        return DataLoader(self._dataset, batch_size=self._batch_size, num_workers=self._num_workers,
+                          shuffle=self._shuffle,
+                          collate_fn=self.dl_collate_fn)
+
+    def dl_collate_fn(self, batch):
+        if self._custom_tokenizer is None:
+            return torch.stack([row[0] for row in batch]), torch.stack([row[1] for row in batch])
+        else:
+            return torch.stack([row[0] for row in batch]), self._custom_tokenizer([row[1] for row in batch],
+                                                                                  padding=True, truncation=True,
+                                                                                  return_tensors="pt")
 
 
 def nais_to_json(annotations_file: str, json_file_name: str = "dataset_nais"):
@@ -130,6 +156,9 @@ def nais_to_json(annotations_file: str, json_file_name: str = "dataset_nais"):
 
     # get annotations_file directory
     data_dir = os.path.dirname(annotations_file)
-    print(type(images))
     with open(f"{data_dir}/{json_file_name}.json", "w") as f:
         json.dump(images, f, indent=4)
+
+
+if __name__ == "__main__":
+    nais_to_json("../data/NAIS/annotations_finale.xml")
