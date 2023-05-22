@@ -1,26 +1,20 @@
+import json
 import os
 import random
-import json
-import argparse
-import xmltodict
 
 import clip
-
-import torch
 import pandas as pd
 import pytorch_lightning as pl
-
-from torchvision.io import read_image
-from torchvision import transforms as t
-from torch.utils.data import Dataset, DataLoader
-from torch.backends import mps
-from torch import cuda
-
+import torch
+import xmltodict
 from PIL import Image
+from torch import cuda
+from torch.backends import mps
+from torch.utils.data import Dataset, DataLoader
+from torchvision import transforms as t
+from torchvision.io import read_image
 
-from .constants import DEFAULT_TRANSFORMS, IMAGE_FIELD, CAPTION_FIELD, \
-    IMAGE_DEFAULT_C, IMAGE_DEFAULT_H, IMAGE_DEFAULT_W
-
+from .constants import DEFAULT_TRANSFORMS, IMAGE_DEFAULT_C, IMAGE_DEFAULT_H, IMAGE_DEFAULT_W
 from .transformations import BackTranslation
 
 
