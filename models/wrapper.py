@@ -27,7 +27,7 @@ def normalize(enc, dim=1):
 
 class CustomCLIPWrapper(pl.LightningModule):
     def __init__(self, model_name: str = "RN50", image_encoder=None, text_encoder=None, minibatch_size: int = 512,
-                 avg_word_embs: bool = False):
+                 kl_coeff: float = 1.0, avg_word_embs: bool = False):
         super().__init__()
 
         self.isVit = "ViT" in model_name
@@ -50,9 +50,14 @@ class CustomCLIPWrapper(pl.LightningModule):
 
         self.minibatch_size = minibatch_size
         self.avg_word_embs = avg_word_embs
+        self.sink_temp = torch.nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
 
         # init self-distillation model
         self.teacher = copy.deepcopy(self.model)
+        self.kl_coeff = kl_coeff
+
+        # enable manual_backward
+        self.automatic_optimization = False
 
     def _prepare_data(self, img_data, caption_data, teacher=False):
         ims = [F.normalize(self.model.encode_image(im), dim=1) for im in img_data]
@@ -84,6 +89,7 @@ class CustomCLIPWrapper(pl.LightningModule):
                 image_logit_scores_notemp = torch.cat(ims) @ torch.cat(images_tmp).t()
             else:
                 image_logit_scores_notemp = torch.cat(images_tmp) @ torch.cat(txt).t()
+
             image_logit_scores = image_logit_scores_notemp * self.model.logit_scale.exp()
             loss = (F.cross_entropy(image_logit_scores, ground_truth) + F.cross_entropy(image_logit_scores.t(),
                                                                                         ground_truth)) / 2
@@ -124,8 +130,7 @@ class CustomCLIPWrapper(pl.LightningModule):
             # calculate teacher
             teacher_ims, teacher_txt = self._prepare_data(image_mbs, text_mbs, teacher=True)
 
-            sim_ii, sim_tt, sim_it, sim_ti = self.compute_similarities(torch.cat(teacher_ims),
-                                                                       torch.cat(teacher_txt))
+            sim_ii, sim_tt, sim_it, sim_ti = compute_similarities(torch.cat(teacher_ims), torch.cat(teacher_txt))
 
             # optimal transport
             img_cost = - (sim_ii + sim_tt + sim_it)
@@ -141,12 +146,12 @@ class CustomCLIPWrapper(pl.LightningModule):
         optimizer.zero_grad()
 
         # image loss
-        self._compute_training_loss(self.model.encode_image, image_mbs, ims, ground_truth, txt, img_target,
-                                    txt_target)
+        self._compute_training_loss(encode_f=self.model.encode_image, data_mbs=image_mbs, data=ims,
+                                    ground_truth=ground_truth, txt=txt, img_target=img_target, txt_target=txt_target)
         # caption loss
-        self._compute_training_loss(self.model.encode_text, text_mbs, txt, ground_truth, txt, img_target,
-                                    txt_target,
-                                    True, ims)
+        self._compute_training_loss(encode_f=self.encode_text, data_mbs=text_mbs, data=txt,
+                                    ground_truth=ground_truth, txt=txt, img_target=img_target, txt_target=txt_target,
+                                    is_text=True, ims=ims)
 
         optimizer.step()
         lr_scheduler = self.lr_schedulers()
@@ -191,7 +196,7 @@ class CustomCLIPWrapper(pl.LightningModule):
 
     def update_teacher(self):
         for teacher, student in zip(self.teacher.parameters(), self.model.parameters()):
-            teacher.data.copy_(self.ema(student.data, teacher.data))
+            teacher.data.copy_(ema(student.data, teacher.data))
 
     # Source: https://github.com/facebookresearch/swav/blob/5e073db0cc69dea22aa75e92bfdd75011e888f28/main_swav.py#L354
     def sinkhorn(self, out):
