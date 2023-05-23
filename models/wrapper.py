@@ -27,7 +27,7 @@ def normalize(enc, dim=1):
 
 class CustomCLIPWrapper(pl.LightningModule):
     def __init__(self, model_name: str = "RN50", image_encoder=None, text_encoder=None, minibatch_size: int = 512,
-                 kl_coeff: float = 1.0, avg_word_embs: bool = False):
+                 kl_coeff: float = 1.0, learning_rate=None, avg_word_embs: bool = False):
         super().__init__()
 
         self.isVit = "ViT" in model_name
@@ -36,7 +36,10 @@ class CustomCLIPWrapper(pl.LightningModule):
             config = yaml.safe_load(stream)[model_name]
 
         self.config = copy.deepcopy(config)
-        self.config["learning_rate"] = float(self.config["learning_rate"])
+        if learning_rate:
+            self.config["learning_rate"] = float(learning_rate)
+        else:
+            self.config["learning_rate"] = float(self.config["learning_rate"])
         del config["learning_rate"]
         self.model = CLIP(**config)
 
