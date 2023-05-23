@@ -6,6 +6,7 @@ import numpy as np
 import torch
 
 from torchvision.transforms import functional as F
+from requests import exceptions as re
 
 
 class RandomSharpness(torch.nn.Module):
@@ -121,7 +122,7 @@ class BackTranslation:
             try:
                 return self._translate(self._translate(sample), from_language=self.__to_language,
                                        to_language=self.from_language)
-            except TypeError:
+            except (TypeError, re.JSONDecodeError, re.HTTPError):
                 return sample
         else:
             return sample
