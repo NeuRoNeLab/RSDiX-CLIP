@@ -42,6 +42,7 @@ if __name__ == '__main__':
     parser.add_argument('--learning_rate', type=float, default=None)
     parser.add_argument('--kl_coeff', type=float, default=1.0)
     parser.add_argument('--devices', type=int, default=-1)
+    parser.add_argument('--warmup_steps', type=int, default=0)
     parser.add_argument('--accelerator', type=str, default='cuda')
     parser.add_argument('--max_epochs', type=int, default=32)
     parser.add_argument('--precision', type=int, default=32)
