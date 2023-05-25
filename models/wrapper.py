@@ -27,7 +27,7 @@ def normalize(enc, dim=1):
 
 class CustomCLIPWrapper(pl.LightningModule):
     def __init__(self, model_name: str = "RN50", image_encoder=None, text_encoder=None, minibatch_size: int = 512,
-                 kl_coeff: float = 1.0, learning_rate=None, avg_word_embs: bool = False):
+                 kl_coeff: float = 1.0, learning_rate=None, warmup_steps: int = 0, avg_word_embs: bool = False):
         super().__init__()
 
         self.isVit = "ViT" in model_name
@@ -52,6 +52,7 @@ class CustomCLIPWrapper(pl.LightningModule):
             self.model.transformer = text_encoder
 
         self.minibatch_size = minibatch_size
+        self.__warmup_steps = warmup_steps
         self.avg_word_embs = avg_word_embs
         self.sink_temp = torch.nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
 
@@ -174,7 +175,7 @@ class CustomCLIPWrapper(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         image, caption = batch
         image_logit_scores, caption_logit_scores = self.forward(image, caption)
-        ground_truth = torch.arange(len(image_logit_scores))
+        ground_truth = torch.arange(len(image_logit_scores), device=image.device)
         loss = (F.cross_entropy(image_logit_scores, ground_truth)
                 + F.cross_entropy(caption_logit_scores, ground_truth)).div(2)
         self.log('val_loss', loss)
@@ -232,7 +233,8 @@ class CustomCLIPWrapper(pl.LightningModule):
 
         # Source: https://github.com/openai/CLIP/issues/107
         lr_scheduler = CosineAnnealingWarmupRestarts(optimizer, first_cycle_steps=self.training_steps_nums(),
-                                                     max_lr=self.config["learning_rate"])
+                                                     max_lr=self.config["learning_rate"],
+                                                     warmup_steps=self.__warmup_steps)
 
         return {
             "optimizer": optimizer,

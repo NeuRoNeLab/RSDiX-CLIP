@@ -26,7 +26,7 @@ class CaptioningDataset(Dataset):
     __back_translation = BackTranslation(from_language="en")
 
     def __init__(self, annotations_file: str, img_dir: str, img_transform=None, target_transform=None,
-                 custom_tokenizer: bool = False):
+                 train: bool = False, use_custom_tokenizer: bool = False):
         """
             Arguments:
                 annotations_file (string): Path to the file containing the annotations.
@@ -34,30 +34,61 @@ class CaptioningDataset(Dataset):
                 img_transform (callable, optional): Optional transform to be applied on an image in order to
                     perform data augmentation. If None, random transformations will be applied.
                 target_transform (callable, optional): Optional transform to be applied on a caption.
+                train (bool): Whether to apply transforms to augment data based on the current stage.
+                use_custom_tokenizer (bool): Whether to tokenize the caption at the __get__ time or at a later time.
         """
         # get annotations_file extension
         annotations_file_ext = annotations_file.split(".")[-1]
         if annotations_file_ext == "json":
-            self._img_captions = pd.read_json(annotations_file)
+            self.__img_captions = pd.read_json(annotations_file)
         elif annotations_file_ext == "csv":
-            self._img_captions = pd.read_csv(annotations_file)
+            self.__img_captions = pd.read_csv(annotations_file)
         else:
             raise Exception(f"annotations_file type: '{annotations_file_ext}' not supported. JSON and CSV format "
                             f"only are supported.")
 
-        self._img_dir = img_dir
+        self.__img_dir = img_dir
 
         if img_transform:
-            self._img_transform = img_transform
+            self.__img_transform = img_transform
         else:
-            self._img_transform = DEFAULT_TRANSFORMS
+            self.__img_transform = DEFAULT_TRANSFORMS
 
-        self._target_transform = target_transform
-        self._device = ("cuda" if cuda.is_available() else "mps" if mps.is_available() else "cpu")
-        self._customer_tokenizer = custom_tokenizer
+        self.__target_transform = target_transform
+        self.__device = ("cuda" if cuda.is_available() else "mps" if mps.is_available() else "cpu")
+        self.__train = train
+        self.__use_custom_tokenizer = use_custom_tokenizer
+
+    @property
+    def get_img_captions(self):
+        return self.__img_captions
+
+    @property
+    def get_img_dir(self) -> str:
+        return self.__img_dir
+
+    @property
+    def get_img_transform(self):
+        return self.__img_transform
+
+    @property
+    def get_target_transform(self):
+        return self.__target_transform
+
+    @property
+    def get_device(self) -> str:
+        return self.__target_transform
+
+    @property
+    def get_train(self) -> bool:
+        return self.__train
+
+    @property
+    def use_custom_tokenizer(self) -> bool:
+        return self.__use_custom_tokenizer
 
     def __len__(self) -> int:
-        return len(self._img_captions)
+        return len(self.__img_captions)
 
     def __getitem__(self, idx):
         """
@@ -68,14 +99,14 @@ class CaptioningDataset(Dataset):
         if torch.is_tensor(idx):
             idx = idx.tolist()
 
-        row = self._img_captions.iloc[idx, 0]
-        img_name = os.path.join(self._img_dir, row['filename'])
+        row = self.__img_captions.iloc[idx, 0]
+        img_name = os.path.join(self.__img_dir, row['filename'])
         img_ext = img_name.split(".")[-1]
 
         if img_ext != 'jpeg' and img_name != 'png':
             image = t.PILToTensor()(Image.open(img_name))
         else:
-            image = read_image(img_name).to(self._device)
+            image = read_image(img_name).to(self.__device)
         # get a random sentence from the five sentences associated to each image
         sentence = row["sentences"][random.randint(0, len(row["sentences"]) - 1)]
         caption = sentence["raw"]
@@ -84,17 +115,18 @@ class CaptioningDataset(Dataset):
         if list(image.shape) != [IMAGE_DEFAULT_C, IMAGE_DEFAULT_H, IMAGE_DEFAULT_W]:
             image = t.Resize((IMAGE_DEFAULT_H, IMAGE_DEFAULT_W), antialias=True)(image)
 
-        image = self._img_transform(image)
+        if self.__train:
+            image = self.__img_transform(image)
 
-        # back translation
-        caption = self.__back_translation(caption)
+            # back translation
+            caption = self.__back_translation(caption)
 
-        if self._target_transform:
-            caption = self._target_transform(caption)
+            if self.__target_transform:
+                caption = self.__target_transform(caption)
 
-        tokenized_caption = caption if self._customer_tokenizer else clip.tokenize(caption)[0]
+        caption = caption if self.__use_custom_tokenizer else clip.tokenize(caption)[0]
 
-        return image, tokenized_caption
+        return image, caption
 
 
 class CaptioningDataModule(pl.LightningDataModule):
@@ -131,8 +163,10 @@ class CaptioningDataModule(pl.LightningDataModule):
         self._custom_tokenizer = custom_tokenizer
 
     def setup(self, stage: str):
-        dataset = CaptioningDataset(self._annotations_file, self._img_dir, self._img_transform,
-                                    self._target_transform, self._custom_tokenizer is not None)
+        train = stage == 'fit'
+        dataset = CaptioningDataset(annotations_file=self._annotations_file, img_dir=self._img_dir,
+                                    img_transform=self._img_transform, target_transform=self._target_transform,
+                                    train=train, use_custom_tokenizer=self._custom_tokenizer is not None)
 
         train_split = int(len(dataset) * self._train_split_percentage / 100)
         remaining_split = len(dataset) - train_split
@@ -147,18 +181,20 @@ class CaptioningDataModule(pl.LightningDataModule):
                           drop_last=True, shuffle=self._shuffle, collate_fn=self.dl_collate_fn)
 
     def val_dataloader(self):
-        return DataLoader(self._val_set, batch_size=self._batch_size, num_workers=self._num_workers)
+        return DataLoader(self._val_set, batch_size=self._batch_size, num_workers=self._num_workers,
+                          drop_last=True, collate_fn=self.dl_collate_fn)
 
     def test_dataloader(self):
-        return DataLoader(self._test_set, batch_size=self._batch_size, num_workers=self._num_workers)
+        return DataLoader(self._test_set, batch_size=self._batch_size, num_workers=self._num_workers,
+                          drop_last=True, collate_fn=self.dl_collate_fn)
 
     def dl_collate_fn(self, batch):
         if self._custom_tokenizer is None:
-            return torch.stack([row[0] for row in batch]), torch.stack([row[1] for row in batch])
+            return torch.stack([row[0] for row in batch], dim=0), torch.stack([row[1] for row in batch], dim=0)
         else:
-            return torch.stack([row[0] for row in batch]), self._custom_tokenizer([row[1] for row in batch],
-                                                                                  padding=True, truncation=True,
-                                                                                  return_tensors="pt")
+            return torch.stack([row[0] for row in batch], dim=0), self._custom_tokenizer([row[1] for row in batch],
+                                                                                         padding=True, truncation=True,
+                                                                                         return_tensors="pt")
 
 
 def nais_to_json(annotations_file: str, json_file_name: str = "dataset_nais"):
