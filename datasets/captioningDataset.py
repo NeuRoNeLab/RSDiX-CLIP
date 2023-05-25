@@ -40,27 +40,55 @@ class CaptioningDataset(Dataset):
         # get annotations_file extension
         annotations_file_ext = annotations_file.split(".")[-1]
         if annotations_file_ext == "json":
-            self._img_captions = pd.read_json(annotations_file)
+            self.__img_captions = pd.read_json(annotations_file)
         elif annotations_file_ext == "csv":
-            self._img_captions = pd.read_csv(annotations_file)
+            self.__img_captions = pd.read_csv(annotations_file)
         else:
             raise Exception(f"annotations_file type: '{annotations_file_ext}' not supported. JSON and CSV format "
                             f"only are supported.")
 
-        self._img_dir = img_dir
+        self.__img_dir = img_dir
 
         if img_transform:
-            self._img_transform = img_transform
+            self.__img_transform = img_transform
         else:
-            self._img_transform = DEFAULT_TRANSFORMS
+            self.__img_transform = DEFAULT_TRANSFORMS
 
-        self._target_transform = target_transform
-        self._device = ("cuda" if cuda.is_available() else "mps" if mps.is_available() else "cpu")
-        self.train = train
-        self._use_custom_tokenizer = use_custom_tokenizer
+        self.__target_transform = target_transform
+        self.__device = ("cuda" if cuda.is_available() else "mps" if mps.is_available() else "cpu")
+        self.__train = train
+        self.__use_custom_tokenizer = use_custom_tokenizer
+
+    @property
+    def get_img_captions(self):
+        return self.__img_captions
+
+    @property
+    def get_img_dir(self) -> str:
+        return self.__img_dir
+
+    @property
+    def get_img_transform(self):
+        return self.__img_transform
+
+    @property
+    def get_target_transform(self):
+        return self.__target_transform
+
+    @property
+    def get_device(self) -> str:
+        return self.__target_transform
+
+    @property
+    def get_train(self) -> bool:
+        return self.__train
+
+    @property
+    def use_custom_tokenizer(self) -> bool:
+        return self.__use_custom_tokenizer
 
     def __len__(self) -> int:
-        return len(self._img_captions)
+        return len(self.__img_captions)
 
     def __getitem__(self, idx):
         """
@@ -71,14 +99,14 @@ class CaptioningDataset(Dataset):
         if torch.is_tensor(idx):
             idx = idx.tolist()
 
-        row = self._img_captions.iloc[idx, 0]
-        img_name = os.path.join(self._img_dir, row['filename'])
+        row = self.__img_captions.iloc[idx, 0]
+        img_name = os.path.join(self.__img_dir, row['filename'])
         img_ext = img_name.split(".")[-1]
 
         if img_ext != 'jpeg' and img_name != 'png':
             image = t.PILToTensor()(Image.open(img_name))
         else:
-            image = read_image(img_name).to(self._device)
+            image = read_image(img_name).to(self.__device)
         # get a random sentence from the five sentences associated to each image
         sentence = row["sentences"][random.randint(0, len(row["sentences"]) - 1)]
         caption = sentence["raw"]
@@ -87,16 +115,16 @@ class CaptioningDataset(Dataset):
         if list(image.shape) != [IMAGE_DEFAULT_C, IMAGE_DEFAULT_H, IMAGE_DEFAULT_W]:
             image = t.Resize((IMAGE_DEFAULT_H, IMAGE_DEFAULT_W), antialias=True)(image)
 
-        if self.train:
-            image = self._img_transform(image)
+        if self.__train:
+            image = self.__img_transform(image)
 
             # back translation
             caption = self.__back_translation(caption)
 
-            if self._target_transform:
-                caption = self._target_transform(caption)
+            if self.__target_transform:
+                caption = self.__target_transform(caption)
 
-        caption = caption if self._use_custom_tokenizer else clip.tokenize(caption)[0]
+        caption = caption if self.__use_custom_tokenizer else clip.tokenize(caption)[0]
 
         return image, caption
 
