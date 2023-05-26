@@ -122,7 +122,7 @@ class BackTranslation:
             try:
                 return self._translate(self._translate(sample), from_language=self.__to_language,
                                        to_language=self.from_language)
-            except (TypeError, re.JSONDecodeError, re.HTTPError, re.ConnectionError):
+            except (TypeError, IndexError, re.JSONDecodeError, re.HTTPError, re.ConnectionError):
                 return sample
         else:
             return sample
