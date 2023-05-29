@@ -63,7 +63,7 @@ class CustomCLIPWrapper(pl.LightningModule):
         # enable manual_backward
         self.automatic_optimization = False
         # save hyperparameters when checkpointing
-        self.save_hyperparameters(ignore=['ímage_encoder', 'text_encoder'])
+        self.save_hyperparameters(ignore=['image_encoder', 'text_encoder'])
 
     def _prepare_data(self, img_data, caption_data, teacher=False):
         ims = [F.normalize(self.model.encode_image(im), dim=1) for im in img_data]
