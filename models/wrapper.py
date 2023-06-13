@@ -41,6 +41,7 @@ class CustomCLIPWrapper(pl.LightningModule):
         else:
             self.config["learning_rate"] = float(self.config["learning_rate"])
         del config["learning_rate"]
+
         self.model = CLIP(**config)
 
         if image_encoder:
@@ -167,11 +168,11 @@ class CustomCLIPWrapper(pl.LightningModule):
         self.update_teacher()
 
     # Source: https://github.com/PyTorchLightning/pytorch-lightning/issues/5449
-    def training_steps_nums(self) -> int:
-        dataset_size = len(self.trainer.train_dataloader)
-        num_devices = max(1, self.trainer.num_devices)
-
-        return (dataset_size * self.trainer.max_epochs) // (self.trainer.accumulate_grad_batches * num_devices)
+    # def training_steps_nums(self) -> int:
+    #     dataset_size = len(self.trainer.train_dataloader)
+    #     num_devices = max(1, self.trainer.num_devices)
+    #
+    #     return (dataset_size * self.trainer.max_epochs) // (self.trainer.accumulate_grad_batches * num_devices)
 
     # activates validation loop while training
     def validation_step(self, batch, batch_idx):
@@ -228,13 +229,14 @@ class CustomCLIPWrapper(pl.LightningModule):
         return Q.t()
 
     def configure_optimizers(self) -> dict:
-        self.trainer.fit_loop.setup_data()
+        # self.trainer.fit_loop.setup_data()
         optimizer = torch.optim.AdamW(self.model.parameters(), lr=self.config["learning_rate"],
                                       betas=(0.9, 0.98 if self.isVit else 0.999), eps=1e-6 if self.isVit else 1e-8,
                                       weight_decay=0.2)
 
         # Source: https://github.com/openai/CLIP/issues/107
-        lr_scheduler = CosineAnnealingWarmupRestarts(optimizer, first_cycle_steps=self.training_steps_nums(),
+        lr_scheduler = CosineAnnealingWarmupRestarts(optimizer,
+                                                     first_cycle_steps=self.trainer.estimated_stepping_batches,
                                                      max_lr=self.config["learning_rate"],
                                                      warmup_steps=self.__warmup_steps)
 
