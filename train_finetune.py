@@ -1,21 +1,12 @@
-import torch
+from lightning import Trainer, seed_everything
+from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
+from lightning.pytorch.cli import LightningArgumentParser
 
-from argparse import ArgumentParser
-from pytorch_lightning import Trainer, seed_everything
-from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
-from torchvision.models import resnet50, ResNet50_Weights
-from transformers import AutoTokenizer, AutoModel
-
-from models import CustomCLIPWrapper
-from datasets.captioningDataset import CaptioningDataModule
+from datasets import CaptioningDataModule
+from models import CLIPWrapper
 
 
 def main(hparams):
-    img_encoder = resnet50(weights=ResNet50_Weights.IMAGENET1K_V2)
-    img_encoder.fc = torch.nn.Linear(2048, 768)
-
-    tokenizer = AutoTokenizer.from_pretrained("johngiorgi/declutr-sci-base")
-    txt_encoder = AutoModel.from_pretrained("johngiorgi/declutr-sci-base")
 
     if hparams.batch_size < 1:
         hparams.batch_size = 128
@@ -34,18 +25,18 @@ def main(hparams):
                       max_epochs=hparams.max_epochs, callbacks=[early_stopping, model_checkpoint])
 
     dm = CaptioningDataModule(annotations_file=hparams.annotations_file, img_dir=hparams.img_dir,
-                              custom_tokenizer=tokenizer, batch_size=hparams.batch_size,
+                              batch_size=hparams.batch_size,
                               num_workers=hparams.num_workers, shuffle=hparams.shuffle)
 
-    model = CustomCLIPWrapper(model_name=hparams.model_name, image_encoder=img_encoder, text_encoder=txt_encoder,
-                              minibatch_size=hparams.batch_size, kl_coeff=hparams.kl_coeff,
+    model = CLIPWrapper(model_name=hparams.model_name, image_encoder=img_encoder, text_encoder=txt_encoder,
+                              batch_size=hparams.batch_size, kl_coeff=hparams.kl_coeff,
                               learning_rate=hparams.learning_rate, avg_word_embs=True)
 
     trainer.fit(model, train_dataloaders=dm)
 
 
-if __name__ == '__main__':
-    parser = ArgumentParser()
+if __name__ == "__main__":
+    parser = LightningArgumentParser()
 
     parser.add_argument('--seed', type=int, default=42,
                         help='the integer value seed for global random state in Lightning')

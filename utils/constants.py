@@ -1,9 +1,8 @@
 import torch
-from torchvision import transforms as t
-from .transformations import RandomSharpness
 
-IMAGE_FIELD = "image"
-CAPTION_FIELD = "caption"
+from torchvision import transforms as t
+from transformations import RandomSharpness
+
 
 IMAGE_DEFAULT_C = 3
 IMAGE_DEFAULT_W = 224
