@@ -4,10 +4,6 @@ import xmltodict
 import numpy as np
 
 
-def calculate_probability(n: int, p: float):
-    return np.random.binomial(n=n, p=p)
-
-
 def nais_to_json(annotations_file: str, json_file_name: str = "dataset_nais"):
     with open(annotations_file) as f:
         data_dict = xmltodict.parse(f.read())
