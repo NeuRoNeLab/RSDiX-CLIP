@@ -51,23 +51,21 @@ TGT_LANGS = ['fr', 'wa', 'frp', 'oc', 'ca', 'rm', 'lld', 'fur', 'lij', 'lmo', 'e
 class BackTranslation:
     """ This class applies back translation on a text with a given probability. """
 
-    def __init__(self, from_lang: str = "en", p: float = 0.5, src_translator: str = "Helsinki-NLP/opus-mt-en-ROMANCE",
-                 tgt_translator: str = "Helsinki-NLP/opus-mt-ROMANCE-en"):
+    def __init__(self, src_translator: str = "Helsinki-NLP/opus-mt-en-ROMANCE",
+                 tgt_translator: str = "Helsinki-NLP/opus-mt-ROMANCE-en", p: float = 0.5):
         """
             Args:
-                from_lang (str): the language to translate from.
+               src_translator (str): the name of the model that will be used to translate to the source language
+               (back translation).
+               tgt_translator (str): the name of the target that will be used to translate to the target language
+               (translation).
                 p (float):  the probability with which to apply back translation.
         """
-        self._from_lang = from_lang
         self._p = p
         self._src_translator = MarianMTModel.from_pretrained(src_translator)
         self._src_tokenizer = MarianTokenizer.from_pretrained(src_translator)
         self._tgt_translator = MarianMTModel.from_pretrained(tgt_translator)
         self._tgt_tokenizer = MarianTokenizer.from_pretrained(tgt_translator)
-
-    @property
-    def from_lang(self) -> str:
-        return self._from_lang
 
     @property
     def p(self) -> float:
