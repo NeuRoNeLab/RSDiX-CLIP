@@ -1,7 +1,6 @@
-import os
 import json
+import os
 import xmltodict
-import numpy as np
 
 
 def nais_to_json(annotations_file: str, json_file_name: str = "dataset_nais"):
