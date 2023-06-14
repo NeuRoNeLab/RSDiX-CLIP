@@ -47,6 +47,30 @@ class CaptioningDataset(Dataset):
         self._device = "cuda" if cuda.is_available() else "mps" if mps.is_available() else "cpu"
         self._train = train
 
+    @property
+    def img_captions(self):
+        return self._img_captions
+
+    @property
+    def get_img_dir(self) -> str:
+        return self._img_dir
+
+    @property
+    def img_transform(self):
+        return self._img_transform
+
+    @property
+    def target_transform(self):
+        return self._target_transform
+
+    @property
+    def device(self) -> str:
+        return self._device
+
+    @property
+    def train(self) -> bool:
+        return self._train
+
     def __len__(self) -> int:
         return len(self._img_captions)
 
