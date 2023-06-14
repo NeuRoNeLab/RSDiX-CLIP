@@ -1,10 +1,14 @@
 import torch
 import random
 
-from torchvision.transforms import functional as f
-from transformers import MarianTokenizer
+import numpy as np
 
-from utils import calculate_probability
+from torchvision.transforms import functional as f
+from transformers import MarianTokenizer, MarianMTModel
+
+
+def calculate_probability(n: int, p: float):
+    return np.random.binomial(n=n, p=p)
 
 
 class RandomSharpness(torch.nn.Module):
@@ -40,17 +44,15 @@ class RandomSharpness(torch.nn.Module):
         return f.adjust_sharpness(sample, random.uniform(self._mn, self._mx)) if bit == 1 else sample
 
 
-TGT_LANGS = ['fr', 'fr_BE', 'fr_CA', 'fr_FR', 'wa', 'frp', 'oc', 'ca', 'rm', 'lld', 'fur', 'lij', 'lmo', 'es',
-             'es_AR', 'es_CL', 'es_CO', 'es_CR', 'es_DO', 'es_EC', 'es_ES', 'es_GT', 'es_HN', 'es_MX', 'es_NI',
-             'es_PA', 'es_PE', 'es_PR', 'es_SV', 'es_UY', 'es_VE', 'pt', 'pt_br', 'pt_BR', 'pt_PT', 'gl', 'lad',
-             'an', 'mwl', 'it', 'it_IT', 'co', 'nap', 'scn', 'vec', 'sc', 'ro', 'la']
+TGT_LANGS = ['fr', 'wa', 'frp', 'oc', 'ca', 'rm', 'lld', 'fur', 'lij', 'lmo', 'es', 'it', 'pt', 'gl', 'lad', 'an',
+             'mwl', 'co', 'nap', 'scn', 'vec', 'sc', 'ro', 'la']
 
 
 class BackTranslation:
     """ This class applies back translation on a text with a given probability. """
 
-    def __init__(self, from_lang: str = "en", p: float = 0.5, src_translator: str = "opus-mt-en-ROMANCE",
-                 tgt_translator: str = "opus-mt-ROMANCE-en"):
+    def __init__(self, from_lang: str = "en", p: float = 0.5, src_translator: str = "Helsinki-NLP/opus-mt-en-ROMANCE",
+                 tgt_translator: str = "Helsinki-NLP/opus-mt-ROMANCE-en"):
         """
             Args:
                 from_lang (str): the language to translate from.
@@ -58,10 +60,10 @@ class BackTranslation:
         """
         self._from_lang = from_lang
         self._p = p
-        self._src_translator = MarianTokenizer.from_pretained(src_translator)
-        self._src_tokenizer = MarianTokenizer.from_pretained(src_translator)
-        self._tgt_tokenizer = MarianTokenizer.from_pretained(tgt_translator)
-        self._tgt_translator = MarianTokenizer.from_pretained(tgt_translator)
+        self._src_translator = MarianMTModel.from_pretrained(src_translator)
+        self._src_tokenizer = MarianTokenizer.from_pretrained(src_translator)
+        self._tgt_translator = MarianMTModel.from_pretrained(tgt_translator)
+        self._tgt_tokenizer = MarianTokenizer.from_pretrained(tgt_translator)
 
     @property
     def from_lang(self) -> str:
@@ -72,13 +74,14 @@ class BackTranslation:
         return self._p
 
     def _translate(self, sample, back: bool = False):
-        translated = self._src_translator.generate(
-            **self._src_tokenizer(sample, return_tensors="pt")) if back is not True else self._tgt_translator.generate(
-            **self._tgt_tokenizer(sample, return_tensors="pt"))
+        translated = self._src_translator.generate(**self._src_tokenizer(sample, return_tensors="pt", padding=True)) \
+            if back is not True else \
+            self._tgt_translator.generate(**self._tgt_tokenizer(sample, return_tensors="pt", padding=True))
 
         # translated text
-        return [self._src_tokenizer.decode(t, skip_special_tokens=True) for t in translated][
-            0] if back is not True else [self._tgt_tokenizer.decode(t, skip_special_tokens=True) for t in translated][0]
+        return [self._src_tokenizer.decode(t, skip_special_tokens=True) for t in translated][0] \
+            if back is not True else \
+            [self._tgt_tokenizer.decode(t, skip_special_tokens=True) for t in translated][0]
 
     def __call__(self, sample: str):
         bit = calculate_probability(n=1, p=self._p)
