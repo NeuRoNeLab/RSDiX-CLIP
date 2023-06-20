@@ -18,9 +18,6 @@ from transformations import BackTranslation
 
 
 class CaptioningDataset(Dataset):
-    # needs to be static in order to track every call to every api
-    _BackTranslation = BackTranslation()
-
     def __init__(self, annotations_file: str, img_dir: str, img_transform=None, target_transform=None,
                  train: bool = False):
         """
@@ -47,6 +44,7 @@ class CaptioningDataset(Dataset):
         self._target_transform = target_transform
         self._device = "cuda" if cuda.is_available() else "mps" if mps.is_available() else "cpu"
         self._train = train
+        self._back_translation = BackTranslation()
 
     @property
     def img_captions(self):
@@ -102,7 +100,7 @@ class CaptioningDataset(Dataset):
         if self._train:
             image = self._img_transform(image)
             # back translation
-            caption = self._BackTranslation(caption)
+            caption = self._back_translation(caption)
 
             if self._target_transform:
                 caption = self._target_transform(caption)
