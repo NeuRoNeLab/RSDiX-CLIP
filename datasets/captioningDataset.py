@@ -12,7 +12,8 @@ from torch.utils.data import Dataset, DataLoader, random_split
 from torchvision import transforms as t
 from torchvision.io import read_image
 
-from utils import DEFAULT_TRANSFORMS, IMAGE_DEFAULT_C, IMAGE_DEFAULT_H, IMAGE_DEFAULT_W
+from utils import DEFAULT_TRANSFORMS, IMAGE_DEFAULT_C, IMAGE_DEFAULT_H, IMAGE_DEFAULT_W, TRAIN_SPLIT_PERCENTAGE, \
+    VAL_SPLIT_PERCENTAGE
 from transformations import BackTranslation
 
 
@@ -111,8 +112,9 @@ class CaptioningDataset(Dataset):
 
 class CaptioningDataModule(l.LightningDataModule):
     def __init__(self, annotations_file: str, img_dir: str, img_transform=None, target_transform=None,
-                 train_split_percentage: float = 80, val_split_percentage: float = 10, batch_size: int = 32,
-                 num_workers: int = 0, shuffle: bool = False):
+                 train_split_percentage: float = TRAIN_SPLIT_PERCENTAGE,
+                 val_split_percentage: float = VAL_SPLIT_PERCENTAGE, batch_size: int = 512, num_workers: int = 0,
+                 shuffle: bool = False):
         """
             Args:
                 annotations_file (string): Path to the file containing the annotations.
