@@ -33,3 +33,11 @@ DEFAULT_TRANSFORMS = t.RandomApply(torch.nn.ModuleList(
 
 TRAIN_SPLIT_PERCENTAGE = 80
 VAL_SPLIT_PERCENTAGE = 10
+
+CONFIG_DIR = "models/configs"
+VIT_CONFIG_FILE = "ViT.yaml"
+
+BATCH_SIZE = 512
+MINIBATCH_SIZE = 0
+IMAGE_FIELD = "pixel_values"
+CAPTION_FIELD = "input_ids"
