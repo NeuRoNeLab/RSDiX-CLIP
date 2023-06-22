@@ -37,6 +37,5 @@ class RemoteSensingLightningCLI(LightningCLI):
             "model_chk.filename": "clip-rsicd-{epoch:02d}-{val_loss:.2f}", "model_chk.monitor": "val_loss"
         })
 
-        parser.link_arguments("data.batch_size", "model.batch_size")
         parser.link_arguments("es.mode", "model_chk.mode")
         parser.link_arguments("es.monitor", "model_chk.monitor")
