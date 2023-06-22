@@ -8,9 +8,10 @@ import lightning as l
 from PIL import Image
 from torch import cuda
 from torch.backends import mps
-from torch.utils.data import Dataset, DataLoader, random_split
+from torch.utils.data import Dataset, DataLoader, random_split, default_collate
 from torchvision import transforms as t
 from torchvision.io import read_image
+from transformers import CLIPProcessor
 
 from utils import DEFAULT_TRANSFORMS, IMAGE_DEFAULT_C, IMAGE_DEFAULT_H, IMAGE_DEFAULT_W, TRAIN_SPLIT_PERCENTAGE, \
     VAL_SPLIT_PERCENTAGE
@@ -19,7 +20,7 @@ from transformations import BackTranslation
 
 class CaptioningDataset(Dataset):
     def __init__(self, annotations_file: str, img_dir: str, img_transform=None, target_transform=None,
-                 train: bool = False):
+                 train: bool = False, dataset_name: str = "RSICD"):
         """
             Args:
                 annotations_file (string): Path to the file containing the annotations.
@@ -44,6 +45,7 @@ class CaptioningDataset(Dataset):
         self._target_transform = target_transform
         self._device = "cuda" if cuda.is_available() else "mps" if mps.is_available() else "cpu"
         self._train = train
+        self._dataset_name = dataset_name
         self._back_translation = BackTranslation()
 
     @property
@@ -69,6 +71,10 @@ class CaptioningDataset(Dataset):
     @property
     def train(self) -> bool:
         return self._train
+
+    @property
+    def dataset_name(self) -> str:
+        return self._dataset_name
 
     def __len__(self) -> int:
         return len(self._img_captions)
@@ -112,7 +118,7 @@ class CaptioningDataModule(l.LightningDataModule):
     def __init__(self, annotations_file: str, img_dir: str, img_transform=None, target_transform=None,
                  train_split_percentage: float = TRAIN_SPLIT_PERCENTAGE,
                  val_split_percentage: float = VAL_SPLIT_PERCENTAGE, batch_size: int = 512, num_workers: int = 0,
-                 shuffle: bool = False):
+                 shuffle: bool = False, processor= None):
         """
             Args:
                 annotations_file (string): Path to the file containing the annotations.
@@ -140,6 +146,11 @@ class CaptioningDataModule(l.LightningDataModule):
         self._num_workers = num_workers
         self._shuffle = shuffle
 
+        if processor is None:
+            self._processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
+        else:
+            self._processor = processor
+
         self._train_set = None
         self._val_set = None
         self._test_set = None
@@ -159,12 +170,17 @@ class CaptioningDataModule(l.LightningDataModule):
 
     def train_dataloader(self):
         return DataLoader(self._train_set, batch_size=self._batch_size, num_workers=self._num_workers,
-                          drop_last=True, shuffle=self._shuffle)
+                          drop_last=True, shuffle=self._shuffle, collate_fn=self.collate_fn)
 
     def val_dataloader(self):
         return DataLoader(self._val_set, batch_size=self._batch_size, num_workers=self._num_workers,
-                          drop_last=True)
+                          drop_last=True, collate_fn=self.collate_fn)
 
     def test_dataloader(self):
         return DataLoader(self._test_set, batch_size=self._batch_size, num_workers=self._num_workers,
-                          drop_last=True)
+                          drop_last=True, collate_fn=self.collate_fn)
+
+    def collate_fn(self, examples):
+        image, caption = default_collate(examples)
+        encodings = self._processor(images=image, text=caption, padding="max_length", return_tensors="pt")
+        return encodings
