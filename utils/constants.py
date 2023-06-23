@@ -30,3 +30,14 @@ DEFAULT_TRANSFORMS = t.RandomApply(torch.nn.ModuleList(
      t.RandomResizedCrop(size=[IMAGE_DEFAULT_W, IMAGE_DEFAULT_H],
                          scale=(RANDOM_RESIZED_CROP_SCALE_MIN, RANDOM_RESIZED_CROP_SCALE_MAX),
                          ratio=(RANDOM_RESIZED_CROP_RATIO_MIN, RANDOM_RESIZED_CROP_RATIO_MAX))]))
+
+TRAIN_SPLIT_PERCENTAGE = 80
+VAL_SPLIT_PERCENTAGE = 10
+
+CONFIG_DIR = "models/configs"
+VIT_CONFIG_FILE = "ViT.yaml"
+
+BATCH_SIZE = 512
+MINIBATCH_SIZE = 0
+IMAGE_FIELD = "pixel_values"
+CAPTION_FIELD = "input_ids"
