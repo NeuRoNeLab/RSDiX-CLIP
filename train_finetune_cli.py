@@ -1,9 +1,9 @@
-from lightning.pytorch.cli import LightningArgumentParser
 from lightning import Trainer  # noqa: F401
+from lightning.pytorch.cli import LightningArgumentParser
 
 from datasets import CaptioningDataModule  # noqa: F401
 from models import CLIPWrapper
-from utils import RemoteSensingLightningCLI, nais_to_json
+from utils import RemoteSensingLightningCLI
 
 
 def cli_main(parser):

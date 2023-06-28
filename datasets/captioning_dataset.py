@@ -1,10 +1,9 @@
 import os
-import torch
 import random
 
-import pandas as pd
 import lightning as l
-
+import pandas as pd
+import torch
 from PIL import Image
 from torch import cuda
 from torch.backends import mps
@@ -13,9 +12,9 @@ from torchvision import transforms as t
 from torchvision.io import read_image
 from transformers import CLIPProcessor
 
+from transformations import BackTranslation
 from utils import DEFAULT_TRANSFORMS, IMAGE_DEFAULT_C, IMAGE_DEFAULT_H, IMAGE_DEFAULT_W, TRAIN_SPLIT_PERCENTAGE, \
     VAL_SPLIT_PERCENTAGE
-from transformations import BackTranslation
 
 
 class CaptioningDataset(Dataset):
@@ -182,5 +181,6 @@ class CaptioningDataModule(l.LightningDataModule):
 
     def collate_fn(self, examples):
         image, caption = default_collate(examples)
-        encodings = self._processor(images=image, text=caption, padding="max_length", return_tensors="pt")
+        encodings = self._processor(images=image, text=list(caption), truncation=True, padding="max_length",
+                                    max_length=77, return_tensors="pt")
         return encodings

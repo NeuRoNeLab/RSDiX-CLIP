@@ -37,6 +37,7 @@ VAL_SPLIT_PERCENTAGE = 10
 CONFIG_DIR = "models/configs"
 VIT_CONFIG_FILE = "ViT.yaml"
 
+BETAS = (0.9, 0.99)
 BATCH_SIZE = 512
 MINIBATCH_SIZE = 0
 IMAGE_FIELD = "pixel_values"

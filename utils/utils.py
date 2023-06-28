@@ -3,7 +3,6 @@ import os
 import xmltodict
 
 from lightning.pytorch.cli import LightningCLI
-from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
 
 
 def nais_to_json(annotations_file: str, json_file_name: str = "dataset_nais"):
@@ -29,13 +28,7 @@ def nais_to_json(annotations_file: str, json_file_name: str = "dataset_nais"):
 
 class RemoteSensingLightningCLI(LightningCLI):
     def add_arguments_to_parser(self, parser):
-        parser.add_lightning_class_args(EarlyStopping, "es")
-        parser.add_lightning_class_args(ModelCheckpoint, "model_chk")
         parser.set_defaults({
             "trainer.devices": -1, "trainer.accelerator": "cuda", "trainer.max_epochs": 32, "trainer.precision": 32,
-            "es.patience": 3, "es.stopping_threshold": None, "es.divergence_threshold": None, "es.monitor": "val_loss",
-            "model_chk.filename": "clip-rsicd-{epoch:02d}-{val_loss:.2f}", "model_chk.monitor": "val_loss"
         })
 
-        parser.link_arguments("es.mode", "model_chk.mode")
-        parser.link_arguments("es.monitor", "model_chk.monitor")

@@ -1,15 +1,15 @@
-import torch
 import copy
 import math
-import yaml
 
-import numpy as np
 import lightning as l
+import numpy as np
+import torch
 import torch.nn.functional as f
-
-from utils import CONFIG_DIR, VIT_CONFIG_FILE, MINIBATCH_SIZE, BATCH_SIZE, IMAGE_FIELD, CAPTION_FIELD
-from transformers import CLIPModel
+import yaml
 from cosine_annealing_warmup import CosineAnnealingWarmupRestarts
+from transformers import CLIPModel
+
+from utils import CONFIG_DIR, VIT_CONFIG_FILE, MINIBATCH_SIZE, BATCH_SIZE, IMAGE_FIELD, CAPTION_FIELD, BETAS
 
 
 def compute_similarities(i_emb, t_emb):
@@ -25,7 +25,8 @@ def ema(s, t):
 class CLIPWrapper(l.LightningModule):
 
     def __init__(self, model: str = "openai/clip-vit-base-patch32", minibatch_size: int = MINIBATCH_SIZE,
-                 kl_coeff: float = 1.0, lr: float = None, warmup_steps: int = 0, weight_decay: float = 0.2):
+                 kl_coeff: float = 1.0, lr: float = None, warmup_steps: int = 0, betas: tuple[float, float] = BETAS,
+                 weight_decay: float = 0.2):
         super().__init__()
 
         self._student = CLIPModel.from_pretrained(model)
@@ -48,6 +49,7 @@ class CLIPWrapper(l.LightningModule):
             self._minibatch_size = minibatch_size
 
         self._warmup_steps = warmup_steps
+        self._betas = betas
         self._weight_decay = weight_decay
         # Source: https://lightning.ai/docs/pytorch/stable/accelerators/accelerator_prepare.html
         self.register_buffer("_sink_temp", torch.nn.Parameter(torch.ones([]) * self._student.logit_scale.item()))
@@ -99,6 +101,7 @@ class CLIPWrapper(l.LightningModule):
             loss = (f.cross_entropy(image_logits, ground_truth) + f.cross_entropy(image_logits.t(),
                                                                                   ground_truth)) / 2
             loss += self.compute_kl_div(image_logits_unscaled, img_target, caption_target)
+            loss.requires_grad_()
             self.manual_backward(loss)
 
         # caption loss
@@ -106,7 +109,7 @@ class CLIPWrapper(l.LightningModule):
             # TODO: maybe its not necessary
             captions_embs = copy.deepcopy(student_images_embs)
             captions_embs[self.global_rank][i * self._minibatch_size:(i + 1) * self._minibatch_size] = \
-                f.normalize(self.encode_image(caption_chk), dim=1)
+                f.normalize(self.encode_text(caption_chk), dim=1)
             # scaled logits with self.student.logit_scale()
             caption_logits = torch.cat(student_images_embs) @ torch.cat(captions_embs).t()
             # unscaled logits DO NOT DIFFERENTIATE THROUGH IT
@@ -114,6 +117,7 @@ class CLIPWrapper(l.LightningModule):
             loss = (f.cross_entropy(caption_logits, ground_truth) + f.cross_entropy(caption_logits.t(),
                                                                                     ground_truth)) / 2
             loss += self.compute_kl_div(caption_logits_unscaled, img_target, caption_target)
+            loss.requires_grad_()
             self.manual_backward(loss)
 
     # Training loss: https://github.com/openai/CLIP/issues/83
@@ -127,13 +131,13 @@ class CLIPWrapper(l.LightningModule):
         image_chunks = torch.chunk(image, n)
         caption_chunks_ids = torch.chunk(torch.arange(len(image)), n)
 
-        # adjust embedding dictionaries
+        # getting the caption for the current gpu
+        # then stacking them to match image_chunks' type (t
         caption_chunks = []
-        for s in caption_chunks_ids:
-            d = {}
-            for key in list(caption.keys()):
-                d[key] = caption[key][s]
-            caption_chunks.append(d)
+        caption = list(caption)
+        for s in caption_chunks_ids[0]:
+            caption_chunks.append(caption[s.item()])
+        caption_chunks = (torch.stack(caption_chunks),)
 
         # calculate original statistics
         with torch.no_grad():
@@ -166,7 +170,7 @@ class CLIPWrapper(l.LightningModule):
             caption_target = self.sinkhorn(caption_cost)
 
             loss += self.compute_kl_div(student_image_logits_unscaled, img_target, caption_target)
-            self.log_dict({'loss': loss / len(student_images_embs),
+            self.log_dict({'loss': loss,
                            'acc': (acc_i + acc_t) / 2 / len(image) / len(student_images_embs)}, prog_bar=True,
                           on_step=True, on_epoch=True, logger=True, enable_graph=True)
 
@@ -192,8 +196,8 @@ class CLIPWrapper(l.LightningModule):
         acc_t = (torch.argmax(caption_logits, 1) == ground_truth).sum()
 
         loss = (f.cross_entropy(image_logits, ground_truth) + f.cross_entropy(caption_logits, ground_truth)).div(2)
-        self.log_dict({'val_loss': loss / len(image_logits),
-                       'acc': (acc_i + acc_t) / 2 / len(image_logits) / len(image_logits)}, prog_bar=True,
+        self.log_dict({'val_loss': loss,
+                       'val_acc': (acc_i + acc_t) / 2 / len(image_logits) / len(image_logits)}, prog_bar=True,
                       on_step=True, on_epoch=True, logger=True, enable_graph=True)
 
     def encode_image(self, image, teacher=False):
@@ -242,7 +246,8 @@ class CLIPWrapper(l.LightningModule):
         return q.t()
 
     def configure_optimizers(self):
-        optimizer = torch.optim.AdamW(params=self._student.parameters(), lr=self._lr, weight_decay=self._weight_decay)
+        optimizer = torch.optim.AdamW(params=self._student.parameters(), lr=self._lr,
+                                      betas=self._betas, weight_decay=self._weight_decay)
 
         # Source: https://github.com/PyTorchLightning/pytorch-lightning/issues/5449
         # Source: https://github.com/openai/CLIP/issues/107
