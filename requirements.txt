@@ -3,8 +3,7 @@ lightning==2.0.4
 numpy==1.25.0
 pandas==2.0.2
 Pillow==9.5.0
-Pillow==9.5.0
-PyYAML==6.0
+pytorch_lightning==2.0.4
 PyYAML==6.0
 torch==2.0.1
 torchvision==0.15.2
