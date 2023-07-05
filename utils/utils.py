@@ -24,11 +24,3 @@ def nais_to_json(annotations_file: str, json_file_name: str = "dataset_nais"):
     data_dir = os.path.dirname(annotations_file)
     with open(f"{data_dir}/{json_file_name}.json", "w") as f:
         json.dump(images, f, indent=4)
-
-
-class RemoteSensingLightningCLI(LightningCLI):
-    def add_arguments_to_parser(self, parser):
-        parser.set_defaults({
-            "trainer.devices": -1, "trainer.accelerator": "cuda", "trainer.max_epochs": 32, "trainer.precision": 32,
-        })
-
