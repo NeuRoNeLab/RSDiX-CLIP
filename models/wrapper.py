@@ -1,8 +1,10 @@
 import copy
 import math
 
+import lightning
 import lightning as l
 import numpy as np
+import pytorch_lightning
 import torch
 import torch.nn.functional as f
 import yaml
@@ -26,7 +28,7 @@ class CLIPWrapper(l.LightningModule):
 
     def __init__(self, model: str = "openai/clip-vit-base-patch32", minibatch_size: int = MINIBATCH_SIZE,
                  kl_coeff: float = 1.0, lr: float = None, warmup_steps: int = 0, betas: tuple[float, float] = BETAS,
-                 weight_decay: float = 0.2):
+                 eps: float = 1e-08, weight_decay: float = 0.2):
         super().__init__()
 
         self._student = CLIPModel.from_pretrained(model)
@@ -50,6 +52,7 @@ class CLIPWrapper(l.LightningModule):
 
         self._warmup_steps = warmup_steps
         self._betas = betas
+        self._eps = eps
         self._weight_decay = weight_decay
         # Source: https://lightning.ai/docs/pytorch/stable/accelerators/accelerator_prepare.html
         self.register_buffer("_sink_temp", torch.nn.Parameter(torch.ones([]) * self._student.logit_scale.item()))
@@ -246,7 +249,7 @@ class CLIPWrapper(l.LightningModule):
         return q.t()
 
     def configure_optimizers(self):
-        optimizer = torch.optim.AdamW(params=self._student.parameters(), lr=self._lr,
+        optimizer = torch.optim.AdamW(params=self._student.parameters(), lr=self._lr, eps=self._eps,
                                       betas=self._betas, weight_decay=self._weight_decay)
 
         # Source: https://github.com/PyTorchLightning/pytorch-lightning/issues/5449
