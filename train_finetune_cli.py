@@ -3,7 +3,6 @@ from lightning.pytorch.cli import LightningArgumentParser, LightningCLI
 
 from datasets import CaptioningDataModule  # noqa: F401
 from models import CLIPWrapper
-from utils import RemoteSensingLightningCLI
 
 
 def cli_main(parser):
