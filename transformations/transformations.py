@@ -72,9 +72,11 @@ class BackTranslation:
         return self._p
 
     def _translate(self, sample, back: bool = False):
-        translated = self._src_translator.generate(**self._src_tokenizer(sample, return_tensors="pt", padding=True)) \
+        translated = self._src_translator.generate(**self._src_tokenizer(sample, return_tensors="pt", padding=True),
+                                                   max_new_tokens=512) \
             if back is not True else \
-            self._tgt_translator.generate(**self._tgt_tokenizer(sample, return_tensors="pt", padding=True))
+            self._tgt_translator.generate(**self._tgt_tokenizer(sample, return_tensors="pt", padding=True),
+                                          max_new_tokens=512)
 
         # translated text
         return [self._src_tokenizer.decode(t, skip_special_tokens=True) for t in translated][0] \
