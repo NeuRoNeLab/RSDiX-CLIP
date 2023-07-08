@@ -115,14 +115,14 @@ class CaptioningDataset(Dataset):
 
 
 class CaptioningDataModule(l.LightningDataModule):
-    def __init__(self, annotations_files: List[str], img_dirs: List[str], img_transform=None, target_transform=None,
-                 train_split_percentage: float = TRAIN_SPLIT_PERCENTAGE,
+    def __init__(self, annotations_files: str | List[str], img_dirs: str | List[str], img_transform=None,
+                 target_transform=None, train_split_percentage: float = TRAIN_SPLIT_PERCENTAGE,
                  val_split_percentage: float = VAL_SPLIT_PERCENTAGE, batch_size: int = 512, num_workers: int = 0,
                  shuffle: bool = False, processor=None):
         """
             Args:
-                annotations_files (List[string]): Paths to the file containing the annotations.
-                img_dirs (List[string]): Directories with all the images.
+                annotations_files (List[string]): Path or Paths to the file containing the annotations.
+                img_dirs (List[string]): Directory or Directories with all the images.
                 img_transform (callable, optional): Optional transforms to be applied on an image in order to perform
                     data augmentation. If None, random transformations will be applied.
                 target_transform (callable, optional): Optional transforms to be applied on a caption.
@@ -136,10 +136,15 @@ class CaptioningDataModule(l.LightningDataModule):
             """
         super().__init__()
 
-        if len(annotations_files) == 0:
+        # check if type is the same, can't have str and list
+        if type(annotations_files) != type(img_dirs):
+            raise Exception(f"annotations_files type '{type(annotations_files)}' is not equal to img_dirs' "
+                            f"type {type(img_dirs)}.")
+
+        if isinstance(annotations_files, list) and len(annotations_files) == 0:
             raise Exception(f"At least one path to an annotation file is required")
 
-        if len(annotations_files) != len(img_dirs):
+        if isinstance(annotations_files, list) and len(annotations_files) != len(img_dirs):
             raise Exception(f"The number of annotations_files must match the number of img_dirs."
                             f"annotations_files count: {len(annotations_files)} - img_dirs count: {len(img_dirs)}")
 
@@ -166,7 +171,7 @@ class CaptioningDataModule(l.LightningDataModule):
         train = stage == 'fit'
         dataset = None
 
-        if len(self._annotations_files) > 1:
+        if isinstance(self._annotations_files, list):
             all_datasets = []
             for i in range(len(self._annotations_files)):
                 captioning_dataset = CaptioningDataset(annotations_file=self._annotations_files[i],
@@ -176,8 +181,8 @@ class CaptioningDataModule(l.LightningDataModule):
 
             dataset = ConcatDataset(all_datasets)
         else:
-            dataset = CaptioningDataset(annotations_file=self._annotations_files[0],
-                                        img_dir=self._img_dirs[0], img_transform=self._img_transform,
+            dataset = CaptioningDataset(annotations_file=self._annotations_files,
+                                        img_dir=self._img_dirs, img_transform=self._img_transform,
                                         target_transform=self._target_transform, train=train)
 
         train_split = int(len(dataset) * self._train_split_percentage / 100)
