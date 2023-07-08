@@ -29,7 +29,7 @@ DEFAULT_TRANSFORMS = t.RandomApply(torch.nn.ModuleList(
                    saturation=(COLOR_JITTER_SATURATION_MIN, COLOR_JITTER_BRIGHTNESS_MAX)),
      t.RandomResizedCrop(size=[IMAGE_DEFAULT_W, IMAGE_DEFAULT_H],
                          scale=(RANDOM_RESIZED_CROP_SCALE_MIN, RANDOM_RESIZED_CROP_SCALE_MAX),
-                         ratio=(RANDOM_RESIZED_CROP_RATIO_MIN, RANDOM_RESIZED_CROP_RATIO_MAX))]))
+                         ratio=(RANDOM_RESIZED_CROP_RATIO_MIN, RANDOM_RESIZED_CROP_RATIO_MAX), antialias=True)]))
 
 TRAIN_SPLIT_PERCENTAGE = 80
 VAL_SPLIT_PERCENTAGE = 10
@@ -37,6 +37,7 @@ VAL_SPLIT_PERCENTAGE = 10
 CONFIG_DIR = "models/configs"
 VIT_CONFIG_FILE = "ViT.yaml"
 
+BETAS = (0.9, 0.99)
 BATCH_SIZE = 512
 MINIBATCH_SIZE = 0
 IMAGE_FIELD = "pixel_values"
