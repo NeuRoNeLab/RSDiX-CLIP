@@ -1,5 +1,6 @@
 import os
 import random
+from typing import List
 
 import lightning as l
 import pandas as pd
@@ -7,7 +8,7 @@ import torch
 from PIL import Image
 from torch import cuda
 from torch.backends import mps
-from torch.utils.data import Dataset, DataLoader, random_split, default_collate
+from torch.utils.data import Dataset, DataLoader, random_split, default_collate, ConcatDataset
 from torchvision import transforms as t
 from torchvision.io import read_image
 from transformers import CLIPProcessor
@@ -114,17 +115,17 @@ class CaptioningDataset(Dataset):
 
 
 class CaptioningDataModule(l.LightningDataModule):
-    def __init__(self, annotations_file: str, img_dir: str, img_transform=None, target_transform=None,
+    def __init__(self, annotations_files: List[str], img_dirs: List[str], img_transform=None, target_transform=None,
                  train_split_percentage: float = TRAIN_SPLIT_PERCENTAGE,
                  val_split_percentage: float = VAL_SPLIT_PERCENTAGE, batch_size: int = 512, num_workers: int = 0,
-                 shuffle: bool = False, processor= None):
+                 shuffle: bool = False, processor=None):
         """
             Args:
-                annotations_file (string): Path to the file containing the annotations.
-                img_dir (string): Directory with all the NAIS_images.
-                img_transform (callable, optional): Optional transform to be applied on an image in order to perform data
-                    augmentation. If None, random transformations will be applied.
-                target_transform (callable, optional): Optional transform to be applied on a caption.
+                annotations_files (List[string]): Paths to the file containing the annotations.
+                img_dirs (List[string]): Directories with all the images.
+                img_transform (callable, optional): Optional transforms to be applied on an image in order to perform
+                    data augmentation. If None, random transformations will be applied.
+                target_transform (callable, optional): Optional transforms to be applied on a caption.
                 train_split_percentage (float): The training set split percentage. If smaller than 100, the remaining
                     will be divided between the validation and test set.
                 val_split_percentage (float): The validation set split percentage. If train_split + val_split is smaller
@@ -135,8 +136,15 @@ class CaptioningDataModule(l.LightningDataModule):
             """
         super().__init__()
 
-        self._annotations_file = annotations_file
-        self._img_dir = img_dir
+        if len(annotations_files) == 0:
+            raise Exception(f"At least one path to an annotation file is required")
+
+        if len(annotations_files) != len(img_dirs):
+            raise Exception(f"The number of annotations_files must match the number of img_dirs."
+                            f"annotations_files count: {len(annotations_files)} - img_dirs count: {len(img_dirs)}")
+
+        self._annotations_files = annotations_files
+        self._img_dirs = img_dirs
         self._img_transform = img_transform
         self._target_transform = target_transform
         self._train_split_percentage = train_split_percentage
@@ -156,9 +164,21 @@ class CaptioningDataModule(l.LightningDataModule):
 
     def setup(self, stage: str):
         train = stage == 'fit'
-        dataset = CaptioningDataset(annotations_file=self._annotations_file, img_dir=self._img_dir,
-                                    img_transform=self._img_transform, target_transform=self._target_transform,
-                                    train=train)
+        dataset = None
+
+        if len(self._annotations_files) > 1:
+            all_datasets = []
+            for i in range(len(self._annotations_files)):
+                captioning_dataset = CaptioningDataset(annotations_file=self._annotations_files[i],
+                                                       img_dir=self._img_dirs[i], img_transform=self._img_transform,
+                                                       target_transform=self._target_transform, train=train)
+                all_datasets.append(captioning_dataset)
+
+            dataset = ConcatDataset(all_datasets)
+        else:
+            dataset = CaptioningDataset(annotations_file=self._annotations_files[0],
+                                        img_dir=self._img_dirs[0], img_transform=self._img_transform,
+                                        target_transform=self._target_transform, train=train)
 
         train_split = int(len(dataset) * self._train_split_percentage / 100)
         remaining_split = len(dataset) - train_split
