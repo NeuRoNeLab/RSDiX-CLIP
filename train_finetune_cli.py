@@ -1,5 +1,5 @@
 from lightning import Trainer  # noqa: F401
-from lightning.pytorch.cli import LightningArgumentParser, LightningCLI
+from lightning.pytorch.cli import LightningCLI
 
 from datasets import CaptioningDataModule  # noqa: F401
 from models import CLIPWrapper
