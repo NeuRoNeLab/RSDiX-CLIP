@@ -38,7 +38,7 @@ generate_combinations() {
           params_string="${params_string} --${key} ${run_params[$key]}"
         done
       echo "Running ${script} with config file: ${config_file} and parameters: ${params_string}"
-       echo python3 "${script}" fit --config "${config_file}" ${params_string}
+      echo python3 "${script}" fit --config "${config_file}" ${params_string}
       python3 "${script}" fit --config "${config_file}" ${params_string}
     else
         declare -i current_key_index=$1
