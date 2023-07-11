@@ -110,7 +110,7 @@ class CLIPWrapper(l.LightningModule):
         # caption loss
         for i, caption_chk in enumerate(caption_chunks):
             # TODO: maybe its not necessary
-            captions_embs = copy.deepcopy(student_images_embs)
+            captions_embs = copy.deepcopy(student_caption_embs)
             captions_embs[self.global_rank][i * self._minibatch_size:(i + 1) * self._minibatch_size] = \
                 f.normalize(self.encode_text(caption_chk), dim=1)
             # scaled logits with self.student.logit_scale()
