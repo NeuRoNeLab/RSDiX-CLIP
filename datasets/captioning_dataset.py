@@ -172,6 +172,15 @@ class CaptioningDataModule(l.LightningDataModule):
         self._val_set = None
         self._test_set = None
 
+    # necessary to use Lightning's BatchSizeFinder
+    @property
+    def batch_size(self):
+        return self._batch_size
+
+    @batch_size.setter
+    def batch_size(self, batch_size):
+        self._batch_size = batch_size
+
     def setup(self, stage: str):
         train = stage == 'fit'
         dataset = None

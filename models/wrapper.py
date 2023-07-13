@@ -26,7 +26,7 @@ def ema(s, t):
 
 class CLIPWrapper(l.LightningModule):
 
-    def __init__(self, model: str = "openai/clip-vit-base-patch32", minibatch_size: int = MINIBATCH_SIZE,
+    def __init__(self, model: str = "openai/clip-vit-base-patch32", batch_size: int = MINIBATCH_SIZE,
                  kl_coeff: float = 1.0, lr: float = None, warmup_steps: int = 0, betas: tuple[float, float] = BETAS,
                  eps: float = 1e-08, weight_decay: float = 0.2):
         super().__init__()
@@ -45,10 +45,11 @@ class CLIPWrapper(l.LightningModule):
         else:
             self._lr = lr
 
-        if minibatch_size == MINIBATCH_SIZE:
-            self._minibatch_size = BATCH_SIZE
+        # changed from minibatch_size to batch_size to match Lightning's BatchSizeFinder expectations
+        if batch_size == MINIBATCH_SIZE:
+            self._batch_size = BATCH_SIZE
         else:
-            self._minibatch_size = minibatch_size
+            self._batch_size = batch_size
 
         self._warmup_steps = warmup_steps
         self._betas = betas
@@ -67,6 +68,24 @@ class CLIPWrapper(l.LightningModule):
 
         # save hyperparameters when checkpointing
         self.save_hyperparameters(ignore=["image_encoder", "text_encoder"])
+
+    # necessary to use Lightning's BatchSizeFinder
+    @property
+    def batch_size(self):
+        return self._batch_size
+
+    @batch_size.setter
+    def batch_size(self, batch_size):
+        self._batch_size = batch_size
+
+    # necessary to use Lightning's LearningRateFinder
+    @property
+    def lr(self):
+        return self._lr
+    
+    @lr.setter
+    def lr(self, lr):
+        self._lr = lr
 
     def get_embeddings(self, images, captions, teacher=False):
         image_embs = [f.normalize(self.encode_image(image, teacher=teacher), dim=1) for image in images]
@@ -95,7 +114,7 @@ class CLIPWrapper(l.LightningModule):
         for i, img_chk in enumerate(image_chunks):
             # TODO: maybe its not necessary
             images_embs = copy.deepcopy(student_images_embs)
-            images_embs[self.global_rank][i * self._minibatch_size:(i + 1) * self._minibatch_size] = \
+            images_embs[self.global_rank][i * self._batch_size:(i + 1) * self._batch_size] = \
                 f.normalize(self.encode_image(img_chk), dim=1)
             # scaled logits with self.student.logit_scale()
             image_logits = torch.cat(images_embs) @ torch.cat(student_caption_embs).t()
@@ -111,7 +130,7 @@ class CLIPWrapper(l.LightningModule):
         for i, caption_chk in enumerate(caption_chunks):
             # TODO: maybe its not necessary
             captions_embs = copy.deepcopy(student_caption_embs)
-            captions_embs[self.global_rank][i * self._minibatch_size:(i + 1) * self._minibatch_size] = \
+            captions_embs[self.global_rank][i * self._batch_size:(i + 1) * self._batch_size] = \
                 f.normalize(self.encode_text(caption_chk), dim=1)
             # scaled logits with self.student.logit_scale()
             caption_logits = torch.cat(student_images_embs) @ torch.cat(captions_embs).t()
@@ -130,7 +149,7 @@ class CLIPWrapper(l.LightningModule):
         optimizer = self.optimizers()
 
         image, caption = batch[IMAGE_FIELD], batch[CAPTION_FIELD]
-        n = math.ceil(len(image) // self._minibatch_size)
+        n = math.ceil(len(image) // self._batch_size)
         image_chunks = torch.chunk(image, n)
         caption_chunks_ids = torch.chunk(torch.arange(len(image)), n)
 
