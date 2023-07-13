@@ -1,10 +1,8 @@
 import copy
 import math
 
-import lightning
 import lightning as l
 import numpy as np
-import pytorch_lightning
 import torch
 import torch.nn.functional as f
 import yaml
