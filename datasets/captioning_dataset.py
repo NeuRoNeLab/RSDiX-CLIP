@@ -99,6 +99,11 @@ class CaptioningDataset(Dataset):
         # get a random sentence from the five sentences associated to each image
         caption = random.choice(row["sentences"])["raw"]
 
+        # making sure it is a 3 channel image (RBG)
+        image_shape = list(image.shape)
+        if image_shape[0] != IMAGE_DEFAULT_C:
+            image = t.PILToTensor()(Image.open(img_name).convert('RGB'))
+
         # a tensor image shape could not be equal to the shape expected
         if list(image.shape) != [IMAGE_DEFAULT_C, IMAGE_DEFAULT_H, IMAGE_DEFAULT_W]:
             image = t.Resize((IMAGE_DEFAULT_H, IMAGE_DEFAULT_W), antialias=True)(image)
