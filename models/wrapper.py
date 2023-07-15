@@ -121,7 +121,6 @@ class CLIPWrapper(l.LightningModule):
             loss = (f.cross_entropy(image_logits, ground_truth) + f.cross_entropy(image_logits.t(),
                                                                                   ground_truth)) / 2
             loss += self.compute_kl_div(image_logits_unscaled, img_target, caption_target)
-            loss.requires_grad_()
             self.manual_backward(loss)
 
         # caption loss
@@ -137,7 +136,6 @@ class CLIPWrapper(l.LightningModule):
             loss = (f.cross_entropy(caption_logits, ground_truth) + f.cross_entropy(caption_logits.t(),
                                                                                     ground_truth)) / 2
             loss += self.compute_kl_div(caption_logits_unscaled, img_target, caption_target)
-            loss.requires_grad_()
             self.manual_backward(loss)
 
     # Training loss: https://github.com/openai/CLIP/issues/83
@@ -191,22 +189,22 @@ class CLIPWrapper(l.LightningModule):
 
             loss += self.compute_kl_div(student_image_logits_unscaled, img_target, caption_target)
             self.log_dict({'loss': loss,
-                           'acc': (acc_i + acc_t) / 2 / len(image) / len(student_images_embs)}, prog_bar=True,
+                           'acc': (acc_i + acc_t) / 2 / len(image)}, prog_bar=True,
                           on_step=True, on_epoch=True, logger=True, enable_graph=True)
 
-            if isinstance(optimizer, list):
-                optimizer = optimizer[0]
-            optimizer.zero_grad()
+        if isinstance(optimizer, list):
+            optimizer = optimizer[0]
+        optimizer.zero_grad()
 
-            self.compute_training_loss(image_chunks, caption_chunks, student_images_embs, student_caption_embs,
-                                       ground_truth, img_target, caption_target)
+        self.compute_training_loss(image_chunks, caption_chunks, student_images_embs, student_caption_embs,
+                                   ground_truth, img_target, caption_target)
 
-            optimizer.step()
-            lr_scheduler = self.lr_schedulers()
-            lr_scheduler.step()
-            self._student.logit_scale.data.clamp_(-np.log(100), np.log(100))
-            self._sink_temp.data.clamp_(-np.log(100), np.log(100))
-            self.update_teacher()
+        optimizer.step()
+        lr_scheduler = self.lr_schedulers()
+        lr_scheduler.step()
+        self._student.logit_scale.data.clamp_(-np.log(100), np.log(100))
+        self._sink_temp.data.clamp_(-np.log(100), np.log(100))
+        self.update_teacher()
 
     def validation_step(self, batch, batch_idx):
         image_logits, caption_logits = self.forward(batch)
@@ -217,7 +215,7 @@ class CLIPWrapper(l.LightningModule):
 
         loss = (f.cross_entropy(image_logits, ground_truth) + f.cross_entropy(caption_logits, ground_truth)).div(2)
         self.log_dict({'val_loss': loss,
-                       'val_acc': (acc_i + acc_t) / 2 / len(image_logits) / len(image_logits)}, prog_bar=True,
+                       'val_acc': (acc_i + acc_t) / 2 / len(image_logits)}, prog_bar=True,
                       on_step=True, on_epoch=True, logger=True, enable_graph=True)
 
     def encode_image(self, image, teacher=False):
@@ -233,7 +231,7 @@ class CLIPWrapper(l.LightningModule):
     def forward(self, inputs):
         outputs = self._student(**inputs)
 
-        return outputs.logits_per_image, outputs.logits_per_image.t()
+        return outputs.logits_per_image, outputs.logits_per_text
         # logits = f.normalize(self.encode_image(image)) @ f.normalize(self.encode_text(caption)).t()
         #
         # return logits, logits.t()  # image logits, caption logits
