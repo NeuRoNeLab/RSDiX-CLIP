@@ -6,8 +6,7 @@
 /.DS_Store
 
 /config.yaml
-/tuner_lr_checkpoints
-/tuner_batch_size_checkpoints
+/tuner_checkpoints
 
 ### Python template
 # Byte-compiled / optimized / DLL files
