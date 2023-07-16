@@ -1,8 +1,7 @@
 import json
 import os
-import xmltodict
 
-from lightning.pytorch.cli import LightningCLI
+import xmltodict
 
 
 def nais_to_json(annotations_file: str, json_file_name: str = "dataset_nais"):
