@@ -1,4 +1,5 @@
 import torch
+import torch.nn.functional as f
 import math
 
 from typing import final
@@ -90,6 +91,19 @@ def compute_mse_similarities(image_image_similarities: torch.Tensor,
         return torch.mean(mse_tensor)
     else:
         return mse_tensor
+
+
+def compute_losses(image_embs, caption_embs, scale, ground_truth, img_target, caption_target, sink_temp, kl_coeff,
+                   reduction="batchmean"):
+    logits = torch.cat(image_embs) @ torch.cat(caption_embs).t()
+    logits_unscaled = logits / scale
+
+    contrastive_loss = (f.cross_entropy(logits, ground_truth) + f.cross_entropy(logits.t(), ground_truth)) / 2
+    distillation_loss = (f.kl_div(f.log_softmax(logits_unscaled * sink_temp, dim=-1), img_target, reduction=reduction) +
+                         f.kl_div(f.log_softmax(logits_unscaled.t() * sink_temp, dim=-1), caption_target,
+                                  reduction=reduction)) / 2 * kl_coeff
+
+    return contrastive_loss, distillation_loss
 
 
 def get_image_caption_chunks(image, caption, batch_size):

@@ -10,7 +10,7 @@ from sentence_transformers import SentenceTransformer
 from transformers import CLIPModel
 
 from model_utils import ema, compute_st_similarities, compute_mse_similarities, \
-    get_image_caption_chunks, compute_teacher_targets
+    get_image_caption_chunks, compute_teacher_targets, compute_losses
 from utils import CONFIG_DIR, VIT_CONFIG_FILE, MINIBATCH_SIZE, BATCH_SIZE, IMAGE_FIELD, CAPTION_FIELD, BETAS
 
 
@@ -95,11 +95,6 @@ class CLIPWrapper(l.LightningModule):
 
         return image_embs, caption_embs
 
-    def compute_kl_div(self, logit_scores, img_target, caption_target, reduction="batchmean"):
-        return (f.kl_div(f.log_softmax(logit_scores * self._sink_temp, dim=-1), img_target, reduction=reduction) +
-                f.kl_div(f.log_softmax(logit_scores.t() * self._sink_temp, dim=-1), caption_target,
-                         reduction=reduction)) / 2 * self._kl_coeff
-
     def compute_training_loss(self, image_chunks, caption_chunks, student_images_embs, student_caption_embs,
                               ground_truth, img_target, caption_target):
         # image loss
@@ -110,13 +105,12 @@ class CLIPWrapper(l.LightningModule):
             images_embs = torch.copy(student_images_embs)
             images_embs[self.global_rank][i * self._batch_size:(i + 1) * self._batch_size] = \
                 f.normalize(self.encode_image(img_chk), dim=1)
-            # scaled logits with self.student.logit_scale()
-            image_logits = torch.cat(images_embs) @ torch.cat(student_caption_embs).t()
-            # unscaled logits DO NOT DIFFERENTIATE THROUGH IT
-            image_logits_unscaled = image_logits / self._student.logit_scale.detach().item()
-            img_contrastive_loss += (f.cross_entropy(image_logits, ground_truth) + f.cross_entropy(image_logits.t(),
-                                                                                                   ground_truth)) / 2
-            img_distillation_loss += self.compute_kl_div(image_logits_unscaled, img_target, caption_target)
+            contrastive_loss, distillation_loss = compute_losses(images_embs, student_caption_embs,
+                                                                 self._student.logit_scale.detach().item(),
+                                                                 ground_truth, img_target, caption_target,
+                                                                 self._sink_temp, self._kl_coeff)
+            img_contrastive_loss += contrastive_loss
+            img_distillation_loss += distillation_loss
 
         # caption loss
         caption_contrastive_loss = 0
@@ -126,13 +120,13 @@ class CLIPWrapper(l.LightningModule):
             captions_embs = torch.copy(student_caption_embs)
             captions_embs[self.global_rank][i * self._batch_size:(i + 1) * self._batch_size] = \
                 f.normalize(self.encode_text(caption_chk), dim=1)
-            # scaled logits with self.student.logit_scale()
-            caption_logits = torch.cat(student_images_embs) @ torch.cat(captions_embs).t()
-            # unscaled logits DO NOT DIFFERENTIATE THROUGH IT
-            caption_logits_unscaled = caption_logits / self._student.logit_scale.detach().item()
-            caption_contrastive_loss += (f.cross_entropy(caption_logits, ground_truth)
-                                         + f.cross_entropy(caption_logits.t(), ground_truth)) / 2
-            caption_distillation_loss += self.compute_kl_div(caption_logits_unscaled, img_target, caption_target)
+            contrastive_loss, distillation_loss = compute_losses(student_images_embs, captions_embs,
+                                                                 self._student.logit_scale.detach().item(),
+                                                                 ground_truth, img_target, caption_target,
+                                                                 self._sink_temp, self._kl_coeff)
+
+            caption_contrastive_loss += contrastive_loss
+            caption_distillation_loss += distillation_loss
 
         contrastive_loss = img_contrastive_loss + caption_contrastive_loss
         distillation_loss = img_distillation_loss + caption_distillation_loss
