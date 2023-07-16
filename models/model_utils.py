@@ -9,7 +9,7 @@ REDUCTIONS: final = frozenset(["mean", "average", "avg", "sum", "add", "none"])
 
 @torch.no_grad()
 # Source: https://github.com/facebookresearch/swav/blob/5e073db0cc69dea22aa75e92bfdd75011e888f28/main_swav.py#L354
-def sinkhorn(self, out):
+def sinkhorn(out):
     q = torch.exp(out / 0.05).t()  # q is k-by-b for consistency with notations from our paper
     b = q.shape[1]  # number of samples to assign
     k = q.shape[0]  # how many prototypes
@@ -32,12 +32,31 @@ def sinkhorn(self, out):
     return q.t()
 
 
+@torch.no_grad()
+def compute_teacher_targets(teacher, image_chunks, caption_chunks):
+    teacher_image_embs, teacher_captions_embs = teacher.get_embeddings(image_chunks, caption_chunks, teacher=True)
+
+    sim_ii, sim_tt, sim_it, sim_ti = compute_similarities(torch.cat(teacher_image_embs),
+                                                          torch.cat(teacher_captions_embs))
+
+    # optimal transport
+    # Perform sinkhorn based on the cost matrix, and then row-normalize
+    # to get target probability.
+    img_cost = - (sim_ii + sim_tt + sim_it)
+    caption_cost = - (sim_ii + sim_tt + sim_ti)
+    img_target, caption_target = sinkhorn(img_cost), sinkhorn(caption_cost)
+
+    return img_target, caption_target
+
+
+@torch.no_grad()
 def compute_similarities(i_emb, t_emb):
     sim_ii, sim_tt = i_emb @ i_emb.t(), t_emb @ t_emb.t()
     sim_it, sim_ti = i_emb @ t_emb.t(), t_emb @ t_emb.t()
     return sim_ii, sim_tt, sim_it, sim_ti
 
 
+@torch.no_grad()
 def compute_st_similarities(clip_image_embeddings, clip_text_embeddings, st_embeddings):
     image_image_similarities = cos_sim(clip_image_embeddings, clip_image_embeddings)
     image_text_similarities = cos_sim(clip_image_embeddings, clip_text_embeddings)
@@ -47,6 +66,7 @@ def compute_st_similarities(clip_image_embeddings, clip_text_embeddings, st_embe
     return image_image_similarities, image_text_similarities, text_text_similarities_clip, text_text_similarities_st
 
 
+@torch.no_grad()
 def compute_mse_similarities(image_image_similarities: torch.Tensor,
                              image_text_similarities: torch.Tensor,
                              text_text_similarities_clip: torch.Tensor,

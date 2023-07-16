@@ -9,8 +9,8 @@ from cosine_annealing_warmup import CosineAnnealingWarmupRestarts
 from sentence_transformers import SentenceTransformer
 from transformers import CLIPModel
 
-from model_utils import sinkhorn, ema, compute_similarities, compute_st_similarities, compute_mse_similarities, \
-    get_image_caption_chunks
+from model_utils import ema, compute_st_similarities, compute_mse_similarities, \
+    get_image_caption_chunks, compute_teacher_targets
 from utils import CONFIG_DIR, VIT_CONFIG_FILE, MINIBATCH_SIZE, BATCH_SIZE, IMAGE_FIELD, CAPTION_FIELD, BETAS
 
 
@@ -19,7 +19,7 @@ class CLIPWrapper(l.LightningModule):
 
     def __init__(self, model: str = "openai/clip-vit-base-patch32", batch_size: int = MINIBATCH_SIZE,
                  kl_coeff: float = 1.0, lr: float = None, warmup_steps: int = 0, betas: tuple[float, float] = BETAS,
-                 eps: float = 1e-08, weight_decay: float = 0.2):
+                 alpha: float = 0.5, eps: float = 1e-08, weight_decay: float = 0.2):
         super().__init__()
 
         self._student = CLIPModel.from_pretrained(model)
@@ -44,6 +44,7 @@ class CLIPWrapper(l.LightningModule):
 
         self._warmup_steps = warmup_steps
         self._betas = betas
+        self._alpha = alpha
         self._eps = eps
         self._weight_decay = weight_decay
         # Source: https://lightning.ai/docs/pytorch/stable/accelerators/accelerator_prepare.html
@@ -102,34 +103,44 @@ class CLIPWrapper(l.LightningModule):
     def compute_training_loss(self, image_chunks, caption_chunks, student_images_embs, student_caption_embs,
                               ground_truth, img_target, caption_target):
         # image loss
+        img_contrastive_loss = 0
+        img_distillation_loss = 0
         for i, img_chk in enumerate(image_chunks):
             # TODO: maybe its not necessary
-            images_embs = copy.deepcopy(student_images_embs)
+            images_embs = torch.copy(student_images_embs)
             images_embs[self.global_rank][i * self._batch_size:(i + 1) * self._batch_size] = \
                 f.normalize(self.encode_image(img_chk), dim=1)
             # scaled logits with self.student.logit_scale()
             image_logits = torch.cat(images_embs) @ torch.cat(student_caption_embs).t()
             # unscaled logits DO NOT DIFFERENTIATE THROUGH IT
             image_logits_unscaled = image_logits / self._student.logit_scale.detach().item()
-            loss = (f.cross_entropy(image_logits, ground_truth) + f.cross_entropy(image_logits.t(),
-                                                                                  ground_truth)) / 2
-            loss += self.compute_kl_div(image_logits_unscaled, img_target, caption_target)
-            self.manual_backward(loss)
+            img_contrastive_loss += (f.cross_entropy(image_logits, ground_truth) + f.cross_entropy(image_logits.t(),
+                                                                                                   ground_truth)) / 2
+            img_distillation_loss += self.compute_kl_div(image_logits_unscaled, img_target, caption_target)
 
         # caption loss
+        caption_contrastive_loss = 0
+        caption_distillation_loss = 0
         for i, caption_chk in enumerate(caption_chunks):
             # TODO: maybe its not necessary
-            captions_embs = copy.deepcopy(student_caption_embs)
+            captions_embs = torch.copy(student_caption_embs)
             captions_embs[self.global_rank][i * self._batch_size:(i + 1) * self._batch_size] = \
                 f.normalize(self.encode_text(caption_chk), dim=1)
             # scaled logits with self.student.logit_scale()
             caption_logits = torch.cat(student_images_embs) @ torch.cat(captions_embs).t()
             # unscaled logits DO NOT DIFFERENTIATE THROUGH IT
             caption_logits_unscaled = caption_logits / self._student.logit_scale.detach().item()
-            loss = (f.cross_entropy(caption_logits, ground_truth) + f.cross_entropy(caption_logits.t(),
-                                                                                    ground_truth)) / 2
-            loss += self.compute_kl_div(caption_logits_unscaled, img_target, caption_target)
-            self.manual_backward(loss)
+            caption_contrastive_loss += (f.cross_entropy(caption_logits, ground_truth)
+                                         + f.cross_entropy(caption_logits.t(), ground_truth)) / 2
+            caption_distillation_loss += self.compute_kl_div(caption_logits_unscaled, img_target, caption_target)
+
+        contrastive_loss = img_contrastive_loss + caption_contrastive_loss
+        distillation_loss = img_distillation_loss + caption_distillation_loss
+
+        loss = self._alpha * contrastive_loss + (1 - self._alpha) * distillation_loss
+        self.manual_backward(loss)
+
+        return loss
 
     # Training loss: https://github.com/openai/CLIP/issues/83
     # Multi-GPU support: https://github.com/MicPie/clasp
@@ -141,48 +152,26 @@ class CLIPWrapper(l.LightningModule):
         image_chunks, caption_chunks = get_image_caption_chunks(image, caption, self._batch_size)
 
         # calculate original statistics
-        with torch.no_grad():
-            # student
-            student_images_embs, student_caption_embs = self.get_embeddings(image_chunks, caption_chunks)
-
-            # scaled logits with self.student.logit_scale()
-            # TODO: check if self.forward is equivalent
-            student_image_logits = torch.cat(student_images_embs) @ torch.cat(student_caption_embs).t()
-            # unscaled logits DO NOT DIFFERENTIATE THROUGH IT
-            student_image_logits_unscaled = student_image_logits / self._student.logit_scale.detach().item()
-            # contrastive loss ground truth -> Identity matrix
-            ground_truth = torch.arange(len(student_image_logits)).long().to(student_image_logits.device)
-            loss = (f.cross_entropy(student_image_logits, ground_truth) + f.cross_entropy(student_image_logits.t(),
-                                                                                          ground_truth)).div(2)
-
-            # teacher
-            teacher_image_embs, teacher_captions_embs = self.get_embeddings(image_chunks, caption_chunks, teacher=True)
-
-            sim_ii, sim_tt, sim_it, sim_ti = compute_similarities(torch.cat(teacher_image_embs),
-                                                                  torch.cat(teacher_captions_embs))
-
-            # optimal transport
-            # Perform sinkhorn based on the cost matrix, and then row-normalize
-            # to get target probability.
-            img_cost = - (sim_ii + sim_tt + sim_it)
-            caption_cost = - (sim_ii + sim_tt + sim_ti)
-            img_target = sinkhorn(img_cost)
-            caption_target = sinkhorn(caption_cost)
-
-            img_img_sim, img_txt_sim, txt_txt_sim_clip, txt_txt_sim_st \
-                = compute_st_similarities(student_images_embs, student_caption_embs, self.st_model.encode(caption))
-
-            loss += self.compute_kl_div(student_image_logits_unscaled, img_target, caption_target)
-            self.log_dict({'loss': loss,
-                           'mse': compute_mse_similarities(img_img_sim, img_txt_sim, txt_txt_sim_clip, txt_txt_sim_st)},
-                          prog_bar=True, on_step=True, on_epoch=True, logger=True, enable_graph=True)
+        img_target, caption_target = compute_teacher_targets(self._teacher, image_chunks, caption_chunks)
 
         if isinstance(optimizer, list):
             optimizer = optimizer[0]
         optimizer.zero_grad()
 
-        self.compute_training_loss(image_chunks, caption_chunks, student_images_embs, student_caption_embs,
-                                   ground_truth, img_target, caption_target)
+        student_images_embs, student_caption_embs = self.get_embeddings(image_chunks, caption_chunks)
+        student_image_logits = torch.cat(student_images_embs) @ torch.cat(student_caption_embs).t()
+        # contrastive loss ground truth -> Identity matrix
+        ground_truth = torch.arange(len(student_image_logits)).long().to(student_image_logits.device)
+        loss = self.compute_training_loss(image_chunks, caption_chunks, student_images_embs, student_caption_embs,
+                                          ground_truth, img_target, caption_target)
+
+        img_img_sim, img_txt_sim, txt_txt_sim_clip, txt_txt_sim_st \
+            = compute_st_similarities(student_images_embs, student_caption_embs, self.st_model.encode(caption))
+
+        self.log_dict({'loss': loss.item(),
+                       'mse_sentence_transformer': compute_mse_similarities(img_img_sim, img_txt_sim, txt_txt_sim_clip,
+                                                                            txt_txt_sim_st)},
+                      prog_bar=True, on_step=True, on_epoch=True, logger=True, enable_graph=True)
 
         optimizer.step()
         lr_scheduler = self.lr_schedulers()
@@ -203,8 +192,9 @@ class CLIPWrapper(l.LightningModule):
             = compute_st_similarities(image_embs, caption_embs, self.st_model.encode(caption))
 
         loss = (f.cross_entropy(image_logits, ground_truth) + f.cross_entropy(caption_logits, ground_truth)).div(2)
-        self.log_dict({'val_loss': loss,
-                       'val_mse': compute_mse_similarities(img_img_sim, img_txt_sim, txt_txt_sim_clip, txt_txt_sim_st)},
+        self.log_dict({'val_loss': loss.item(),
+                       'val_mse_sentence_transformer': compute_mse_similarities(img_img_sim, img_txt_sim,
+                                                                                txt_txt_sim_clip, txt_txt_sim_st)},
                       prog_bar=True, on_step=True, on_epoch=True, logger=True, enable_graph=True)
 
     def encode_image(self, image, teacher=False):
