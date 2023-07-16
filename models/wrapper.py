@@ -168,9 +168,13 @@ class CLIPWrapper(l.LightningModule):
         img_img_sim, img_txt_sim, txt_txt_sim_clip, txt_txt_sim_st \
             = compute_st_similarities(student_images_embs, student_caption_embs, self.st_model.encode(caption))
 
+        acc_i = (torch.argmax(student_image_logits, 1) == ground_truth).sum()
+        acc_t = (torch.argmax(student_image_logits, 0) == ground_truth).sum()
+
         self.log_dict({'loss': loss.item(),
                        'mse_sentence_transformer': compute_mse_similarities(img_img_sim, img_txt_sim, txt_txt_sim_clip,
-                                                                            txt_txt_sim_st)},
+                                                                            txt_txt_sim_st),
+                       'acc': (acc_i + acc_t) / 2 / len(image)},
                       prog_bar=True, on_step=True, on_epoch=True, logger=True, enable_graph=True)
 
         optimizer.step()
@@ -188,13 +192,17 @@ class CLIPWrapper(l.LightningModule):
         image_logits, caption_logits = self.forward(batch)
         ground_truth = torch.arange(len(image_logits), device=batch[IMAGE_FIELD].device)
 
+        acc_i = (torch.argmax(image_logits, 1) == ground_truth).sum()
+        acc_t = (torch.argmax(caption_logits, 1) == ground_truth).sum()
+
         img_img_sim, img_txt_sim, txt_txt_sim_clip, txt_txt_sim_st \
             = compute_st_similarities(image_embs, caption_embs, self.st_model.encode(caption))
 
         loss = (f.cross_entropy(image_logits, ground_truth) + f.cross_entropy(caption_logits, ground_truth)).div(2)
         self.log_dict({'val_loss': loss.item(),
                        'val_mse_sentence_transformer': compute_mse_similarities(img_img_sim, img_txt_sim,
-                                                                                txt_txt_sim_clip, txt_txt_sim_st)},
+                                                                                txt_txt_sim_clip, txt_txt_sim_st),
+                       'val_acc': (acc_i + acc_t) / 2 / len(image_logits)},
                       prog_bar=True, on_step=True, on_epoch=True, logger=True, enable_graph=True)
 
     def encode_image(self, image, teacher=False):
