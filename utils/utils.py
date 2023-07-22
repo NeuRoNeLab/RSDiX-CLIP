@@ -1,6 +1,6 @@
 import json
 import os
-
+import torch.cuda
 import xmltodict
 
 
@@ -23,3 +23,25 @@ def nais_to_json(annotations_file: str, json_file_name: str = "dataset_nais"):
     data_dir = os.path.dirname(annotations_file)
     with open(f"{data_dir}/{json_file_name}.json", "w") as f:
         json.dump(images, f, indent=4)
+
+
+class ListWrapper(list):
+    def __init__(self, initial_list=None):
+        if initial_list is None:
+            super().__init__()
+        else:
+            super().__init__(initial_list)
+
+        self._device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    @property
+    def device(self):
+        return self._device
+
+    @device.setter
+    def device(self, device):
+        self._device = device
+
+    def to(self, device):
+        self._device = device
+        return self
