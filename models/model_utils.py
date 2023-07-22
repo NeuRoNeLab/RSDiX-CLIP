@@ -55,7 +55,6 @@ def compute_teacher_targets(teacher_image_embs, teacher_captions_embs):
     return img_target, caption_target
 
 
-
 @torch.no_grad()
 def compute_st_similarities(clip_image_embeddings, clip_text_embeddings, st_embeddings):
     if isinstance(clip_image_embeddings, list):
@@ -107,9 +106,9 @@ def compute_mse_similarities(image_image_similarities: torch.Tensor,
 def compute_losses(image_embs, caption_embs, scale, ground_truth, img_target, caption_target, sink_temp, kl_coeff,
                    reduction="batchmean"):
     logits_unscaled = torch.cat(image_embs) @ torch.cat(caption_embs).t()
-    scale = scale.exp()  
-    sink_temp = sink_temp.exp()  
-    logits = logits_unscaled * scale  
+    scale = scale.exp()
+    sink_temp = sink_temp.exp()
+    logits = logits_unscaled * scale
 
     contrastive_loss = (f.cross_entropy(logits, ground_truth) + f.cross_entropy(logits.t(), ground_truth)) / 2
     distillation_loss = (f.kl_div(f.log_softmax(logits_unscaled * sink_temp, dim=-1), img_target, reduction=reduction) +

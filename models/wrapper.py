@@ -99,7 +99,7 @@ class CLIPWrapper(l.LightningModule):
             images_embs[self.global_rank][i * self._batch_size:(i + 1) * self._batch_size] = \
                 f.normalize(self.encode_image(img_chk), dim=1)
             contrastive_loss, distillation_loss = compute_losses(images_embs, student_caption_embs,
-                                                                 self._student.logit_scale.detach().item(),
+                                                                 self._student.logit_scale,
                                                                  ground_truth, img_target, caption_target,
                                                                  self._sink_temp, self._kl_coeff)
             img_contrastive_loss += contrastive_loss
@@ -114,7 +114,7 @@ class CLIPWrapper(l.LightningModule):
             captions_embs[self.global_rank][i * self._batch_size:(i + 1) * self._batch_size] = \
                 f.normalize(self.encode_text(caption_chk), dim=1)
             contrastive_loss, distillation_loss = compute_losses(student_images_embs, captions_embs,
-                                                                 self._student.logit_scale.detach().item(),
+                                                                 self._student.logit_scale,
                                                                  ground_truth, img_target, caption_target,
                                                                  self._sink_temp, self._kl_coeff)
 
