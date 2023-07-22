@@ -1,7 +1,6 @@
 import os
 import random
 from typing import List
-
 import lightning as l
 import pandas as pd
 import torch
@@ -10,10 +9,9 @@ from torch.utils.data import Dataset, DataLoader, random_split, default_collate,
 from torchvision import transforms as t
 from torchvision.io import read_image
 from transformers import CLIPProcessor
-
 from transformations import BackTranslation
 from utils import DEFAULT_TRANSFORMS, IMAGE_DEFAULT_C, IMAGE_DEFAULT_H, IMAGE_DEFAULT_W, TRAIN_SPLIT_PERCENTAGE, \
-    VAL_SPLIT_PERCENTAGE
+    VAL_SPLIT_PERCENTAGE, RAW_FIELD_CAPTION, ListWrapper
 
 
 class CaptioningDataset(Dataset):
@@ -166,15 +164,6 @@ class CaptioningDataModule(l.LightningDataModule):
         self._val_set = None
         self._test_set = None
 
-    # necessary to use Lightning's BatchSizeFinder
-    @property
-    def batch_size(self):
-        return self._batch_size
-
-    @batch_size.setter
-    def batch_size(self, batch_size):
-        self._batch_size = batch_size
-
     def setup(self, stage: str):
         train = stage == 'fit'
         dataset = None
@@ -216,4 +205,5 @@ class CaptioningDataModule(l.LightningDataModule):
         image, caption = default_collate(examples)
         encodings = self._processor(images=image, text=list(caption), truncation=True, padding="max_length",
                                     max_length=77, return_tensors="pt")
+        encodings[RAW_FIELD_CAPTION] = ListWrapper(list(caption))
         return encodings
