@@ -1,8 +1,8 @@
+import math
+from typing import final
+
 import torch
 import torch.nn.functional as f
-import math
-
-from typing import final
 from sentence_transformers.util import cos_sim
 
 REDUCTIONS: final = frozenset(["mean", "average", "avg", "sum", "add", "none"])
@@ -34,9 +34,14 @@ def sinkhorn(out):
 
 
 @torch.no_grad()
-def compute_teacher_targets(teacher, image_chunks, caption_chunks):
-    teacher_image_embs, teacher_captions_embs = teacher.get_embeddings(image_chunks, caption_chunks, teacher=True)
+def compute_similarities(i_emb, t_emb):
+    sim_ii, sim_tt = i_emb @ i_emb.t(), t_emb @ t_emb.t()
+    sim_it, sim_ti = i_emb @ t_emb.t(), t_emb @ t_emb.t()
+    return sim_ii, sim_tt, sim_it, sim_ti
 
+
+@torch.no_grad()
+def compute_teacher_targets(teacher_image_embs, teacher_captions_embs):
     sim_ii, sim_tt, sim_it, sim_ti = compute_similarities(torch.cat(teacher_image_embs),
                                                           torch.cat(teacher_captions_embs))
 
@@ -50,15 +55,21 @@ def compute_teacher_targets(teacher, image_chunks, caption_chunks):
     return img_target, caption_target
 
 
-@torch.no_grad()
-def compute_similarities(i_emb, t_emb):
-    sim_ii, sim_tt = i_emb @ i_emb.t(), t_emb @ t_emb.t()
-    sim_it, sim_ti = i_emb @ t_emb.t(), t_emb @ t_emb.t()
-    return sim_ii, sim_tt, sim_it, sim_ti
-
 
 @torch.no_grad()
 def compute_st_similarities(clip_image_embeddings, clip_text_embeddings, st_embeddings):
+    if isinstance(clip_image_embeddings, list):
+        if len(clip_image_embeddings) > 1:
+            clip_image_embeddings = torch.stack(clip_image_embeddings)
+        else:
+            clip_image_embeddings = clip_image_embeddings[0]
+
+    if isinstance(clip_text_embeddings, list):
+        if len(clip_text_embeddings) > 1:
+            clip_text_embeddings = torch.stack(clip_text_embeddings)
+        else:
+            clip_text_embeddings = clip_text_embeddings[0]
+
     image_image_similarities = cos_sim(clip_image_embeddings, clip_image_embeddings)
     image_text_similarities = cos_sim(clip_image_embeddings, clip_text_embeddings)
     text_text_similarities_clip = cos_sim(clip_text_embeddings, clip_text_embeddings)
@@ -95,8 +106,10 @@ def compute_mse_similarities(image_image_similarities: torch.Tensor,
 
 def compute_losses(image_embs, caption_embs, scale, ground_truth, img_target, caption_target, sink_temp, kl_coeff,
                    reduction="batchmean"):
-    logits = torch.cat(image_embs) @ torch.cat(caption_embs).t()
-    logits_unscaled = logits / scale
+    logits_unscaled = torch.cat(image_embs) @ torch.cat(caption_embs).t()
+    scale = scale.exp()  
+    sink_temp = sink_temp.exp()  
+    logits = logits_unscaled * scale  
 
     contrastive_loss = (f.cross_entropy(logits, ground_truth) + f.cross_entropy(logits.t(), ground_truth)) / 2
     distillation_loss = (f.kl_div(f.log_softmax(logits_unscaled * sink_temp, dim=-1), img_target, reduction=reduction) +
