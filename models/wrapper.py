@@ -238,9 +238,10 @@ class CLIPWrapper(l.LightningModule):
         # Source: https://github.com/PyTorchLightning/pytorch-lightning/issues/5449
         # Source: https://github.com/openai/CLIP/issues/107
         lr_scheduler = CosineAnnealingWarmupRestarts(optimizer=optimizer,
-                                                     first_cycle_steps=self.trainer.train_dataloader,
+                                                     first_cycle_steps=self.trainer.estimated_stepping_batches,
                                                      max_lr=self._lr,
-                                                     warmup_steps=self._warmup_steps)
+                                                     warmup_steps=min(self._warmup_steps,
+                                                                      self.trainer.estimated_stepping_batches - 1))
 
         return {
             "optimizer": optimizer,
