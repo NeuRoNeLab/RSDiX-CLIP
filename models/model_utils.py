@@ -36,7 +36,7 @@ def sinkhorn(out):
 @torch.no_grad()
 def compute_similarities(i_emb, t_emb):
     sim_ii, sim_tt = i_emb @ i_emb.t(), t_emb @ t_emb.t()
-    sim_it, sim_ti = i_emb @ t_emb.t(), t_emb @ t_emb.t()
+    sim_it, sim_ti = i_emb @ t_emb.t(), t_emb @ i_emb.t()
     return sim_ii, sim_tt, sim_it, sim_ti
 
 

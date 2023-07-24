@@ -1,28 +1,31 @@
 import copy
-from typing import Union
 
 import lightning as l
-import numpy as np
 import torch
 import torch.nn.functional as f
 import yaml
 from cosine_annealing_warmup import CosineAnnealingWarmupRestarts
 from sentence_transformers import SentenceTransformer
+from torch.optim.lr_scheduler import LinearLR
 from transformers import CLIPModel
 
 from utils import CONFIG_DIR, VIT_CONFIG_FILE, MINIBATCH_SIZE, BATCH_SIZE, IMAGE_FIELD, CAPTION_FIELD, BETAS, \
     RAW_FIELD_CAPTION
 from .model_utils import ema, compute_st_similarities, compute_mse_similarities, \
-    get_image_caption_chunks, compute_teacher_targets, compute_losses
+    compute_teacher_targets
 
 
 class CLIPWrapper(l.LightningModule):
     st_model = SentenceTransformer("all-MiniLM-L6-v2")
 
     def __init__(self, model: str = "openai/clip-vit-base-patch32", batch_size: int = MINIBATCH_SIZE,
-                 kl_coeff: float = 1.0, lr: float = None, warmup_steps: int = 0, betas: tuple[float, float] = BETAS,
-                 alpha: float = 0.5, eps: float = 1e-08, weight_decay: float = 0.2):
+                 kl_coeff: float = 1.0, lr: float = None, use_warmup: str = "cosine", warmup_steps: int = 0,
+                 betas: tuple[float, float] = BETAS, alpha: float = 0.5, eps: float = 1e-08, weight_decay: float = 0.2,
+                 start_factor: float = 0.3333333333333333, end_factor: float = 1.0, total_iters: int = 5):
         super().__init__()
+
+        if use_warmup != "cosine" and use_warmup != "linear":
+            raise Exception(f"{use_warmup} not supported. Try 'cosine' or 'linear'. ")
 
         self._student = CLIPModel.from_pretrained(model)
 
@@ -44,11 +47,18 @@ class CLIPWrapper(l.LightningModule):
         else:
             self._batch_size = batch_size
 
-        self._warmup_steps = warmup_steps
+        self._use_warmup = use_warmup
+        self._weight_decay = weight_decay
         self._betas = betas
         self._alpha = alpha
         self._eps = eps
-        self._weight_decay = weight_decay
+
+        if use_warmup == "cosine":
+            self._warmup_steps = warmup_steps
+        else:
+            self._start_factor = start_factor
+            self._end_factor = end_factor
+            self._total_iters = total_iters
         # Source: https://lightning.ai/docs/pytorch/stable/accelerators/accelerator_prepare.html
         self.register_buffer("_sink_temp", torch.nn.Parameter(torch.ones([]) * self._student.logit_scale.item()))
 
@@ -57,11 +67,8 @@ class CLIPWrapper(l.LightningModule):
 
         self._kl_coeff = kl_coeff
 
-        # enable manual backward
-        self.automatic_optimization = False
-
         # save hyperparameters when checkpointing
-        self.save_hyperparameters(ignore=["image_encoder", "text_encoder"])
+        self.save_hyperparameters()
 
     # necessary to use Lightning's LearningRateFinder
     @property
@@ -73,61 +80,10 @@ class CLIPWrapper(l.LightningModule):
         self._lr = lr
 
     def get_embeddings(self, images, captions, teacher=False):
-        image_embs = [f.normalize(self.encode_image(image, teacher=teacher), dim=1) for image in images]
-        caption_embs = [f.normalize(self.encode_text(caption, teacher=teacher), dim=1) for caption in captions]
+        images_embeds = f.normalize(self.encode_image(image=images, teacher=teacher))
+        captions_embeds = f.normalize(self.encode_text(caption=captions, teacher=teacher))
 
-        # sync and gather data from all devices
-        image_embs, caption_embs = self.all_gather(torch.cat(image_embs)), self.all_gather(torch.cat(caption_embs))
-
-        if len(image_embs.shape) == 3:
-            image_embs = list(image_embs)
-            caption_embs = list(caption_embs)
-        else:
-            image_embs = [image_embs]
-            caption_embs = [caption_embs]
-
-        return image_embs, caption_embs
-
-    def compute_training_loss(self, image_chunks, caption_chunks, student_images_embs, student_caption_embs,
-                              ground_truth, img_target, caption_target):
-        # image loss
-        img_contrastive_loss: Union[float, torch.Tensor] = 0.0
-        img_distillation_loss: Union[float, torch.Tensor] = 0.0
-        for i, img_chk in enumerate(image_chunks):
-            # TODO: maybe it's not necessary
-            images_embs = [torch.clone(student_images_embs[j]) for j in range(0, len(student_images_embs))]
-            images_embs[self.global_rank][i * self._batch_size:(i + 1) * self._batch_size] = \
-                f.normalize(self.encode_image(img_chk), dim=1)
-            contrastive_loss, distillation_loss = compute_losses(images_embs, student_caption_embs,
-                                                                 self._student.logit_scale,
-                                                                 ground_truth, img_target, caption_target,
-                                                                 self._sink_temp, self._kl_coeff)
-            img_contrastive_loss += contrastive_loss
-            img_distillation_loss += distillation_loss
-
-        # caption loss
-        caption_contrastive_loss: Union[float, torch.Tensor] = 0.0
-        caption_distillation_loss: Union[float, torch.Tensor] = 0.0
-        for i, caption_chk in enumerate(caption_chunks):
-            # TODO: maybe it's not necessary
-            captions_embs = [torch.clone(student_caption_embs[j]) for j in range(0, len(student_caption_embs))]
-            captions_embs[self.global_rank][i * self._batch_size:(i + 1) * self._batch_size] = \
-                f.normalize(self.encode_text(caption_chk), dim=1)
-            contrastive_loss, distillation_loss = compute_losses(student_images_embs, captions_embs,
-                                                                 self._student.logit_scale,
-                                                                 ground_truth, img_target, caption_target,
-                                                                 self._sink_temp, self._kl_coeff)
-
-            caption_contrastive_loss += contrastive_loss
-            caption_distillation_loss += distillation_loss
-
-        contrastive_loss = img_contrastive_loss + caption_contrastive_loss
-        distillation_loss = img_distillation_loss + caption_distillation_loss
-
-        loss = self._alpha * contrastive_loss + (1 - self._alpha) * distillation_loss
-        self.manual_backward(loss)
-
-        return loss
+        return images_embeds, captions_embeds
 
     # Training loss: https://github.com/openai/CLIP/issues/83
     # Multi-GPU support: https://github.com/MicPie/clasp
@@ -135,60 +91,64 @@ class CLIPWrapper(l.LightningModule):
         # get optimizers and lr scheduler
         optimizer = self.optimizers()
 
-        image, caption, raw_caption = batch[IMAGE_FIELD], batch[CAPTION_FIELD], batch[RAW_FIELD_CAPTION]
-        image_chunks, caption_chunks = get_image_caption_chunks(image, caption, self._batch_size)
+        images, captions, raw_captions = batch[IMAGE_FIELD], batch[CAPTION_FIELD], batch[RAW_FIELD_CAPTION]
+
+        del batch[RAW_FIELD_CAPTION]
 
         # calculate original statistics
         with torch.no_grad():
-            teacher_image_embs, teacher_captions_embs = self.get_embeddings(image_chunks, caption_chunks,
-                                                                            teacher=True)
-            img_target, caption_target = compute_teacher_targets(teacher_image_embs, teacher_captions_embs)
+            teacher_image_embs, teacher_captions_embs = self.get_embeddings(images, captions, teacher=True)
+            img_target, caption_target = compute_teacher_targets([teacher_image_embs], [teacher_captions_embs])
 
         if isinstance(optimizer, list):
             optimizer = optimizer[0]
         optimizer.zero_grad()
 
-        student_images_embs, student_caption_embs = self.get_embeddings(image_chunks, caption_chunks)
-        student_image_logits = torch.cat(student_images_embs) @ torch.cat(student_caption_embs).t()
+        contrastive_loss = self.forward(batch).loss
+
+        student_images_embs, student_caption_embs = self.get_embeddings(images, captions)
+        student_image_logits_unscaled = torch.cat([student_images_embs]) @ torch.cat([student_caption_embs]).t()
+        sink_temp = self._sink_temp.exp()
+
         # contrastive loss ground truth -> Identity matrix
-        ground_truth = torch.arange(len(student_image_logits)).long().to(student_image_logits.device)
-        loss = self.compute_training_loss(image_chunks, caption_chunks, student_images_embs, student_caption_embs,
-                                          ground_truth, img_target, caption_target)
+        ground_truth = torch.arange(len(student_image_logits_unscaled)).long().to(student_image_logits_unscaled.device)
+        distillation_loss = (f.kl_div(f.log_softmax(student_image_logits_unscaled * sink_temp, dim=-1),
+                                      img_target,
+                                      reduction="batchmean") +
+                             f.kl_div(f.log_softmax(student_image_logits_unscaled.t() * sink_temp, dim=-1),
+                                      caption_target,
+                                      reduction="batchmean")) / 2 * self._kl_coeff
 
         img_img_sim, img_txt_sim, txt_txt_sim_clip, txt_txt_sim_st \
             = compute_st_similarities(student_images_embs, student_caption_embs,
-                                      self.st_model.encode(raw_caption, device=batch[IMAGE_FIELD].device))
+                                      self.st_model.encode(raw_captions, device=batch[IMAGE_FIELD].device))
 
         if txt_txt_sim_st.device != batch[IMAGE_FIELD].device:
             txt_txt_sim_st = txt_txt_sim_st.to(batch[IMAGE_FIELD].device)
 
-        acc_i = (torch.argmax(student_image_logits, 1) == ground_truth).sum()
-        acc_t = (torch.argmax(student_image_logits, 0) == ground_truth).sum()
+        acc_i = (torch.argmax(student_image_logits_unscaled, 1) == ground_truth).sum()
+        acc_t = (torch.argmax(student_image_logits_unscaled, 0) == ground_truth).sum()
+
+        loss = self._alpha * contrastive_loss + (1 - self._alpha) * distillation_loss
 
         self.log_dict({'loss': loss.item(),
                        'mse_sentence_transformer': compute_mse_similarities(img_img_sim, img_txt_sim, txt_txt_sim_clip,
                                                                             txt_txt_sim_st),
-                       'acc': (acc_i + acc_t) / 2 / len(image)},
-                      batch_size=self._batch_size,
+                       'acc': (acc_i + acc_t) / 2 / len(images)},
                       prog_bar=True, on_step=True, on_epoch=True, logger=True, enable_graph=True)
 
-        optimizer.step()
-        lr_scheduler = self.lr_schedulers()
-        lr_scheduler.step()
-        self._student.logit_scale.data.clamp_(-np.log(100), np.log(100))
-        self._sink_temp.data.clamp_(-np.log(100), np.log(100))
         self.update_teacher()
 
         return loss
 
     def validation_step(self, batch, batch_idx):
-        image, caption, raw_caption = batch[IMAGE_FIELD], batch[CAPTION_FIELD], batch[RAW_FIELD_CAPTION]
-        image_chunks, caption_chunks = get_image_caption_chunks(image, caption, self._batch_size)
-        image_embs, caption_embs = self.get_embeddings(image_chunks, caption_chunks)
+        images, captions, raw_captions = batch[IMAGE_FIELD], batch[CAPTION_FIELD], batch[RAW_FIELD_CAPTION]
+        image_embs, caption_embs = self.get_embeddings(images, captions)
 
         del batch[RAW_FIELD_CAPTION]
 
-        image_logits, caption_logits = self.forward(batch)
+        outputs = self.forward(batch)
+        image_logits, caption_logits = outputs.logits_per_image, outputs.logits_per_text
         ground_truth = torch.arange(len(image_logits), device=batch[IMAGE_FIELD].device)
 
         acc_i = (torch.argmax(image_logits, 1) == ground_truth).sum()
@@ -196,17 +156,15 @@ class CLIPWrapper(l.LightningModule):
 
         img_img_sim, img_txt_sim, txt_txt_sim_clip, txt_txt_sim_st \
             = compute_st_similarities(image_embs, caption_embs,
-                                      self.st_model.encode(raw_caption, device=batch[IMAGE_FIELD].device))
+                                      self.st_model.encode(raw_captions, device=batch[IMAGE_FIELD].device))
 
         if txt_txt_sim_st.device != batch[IMAGE_FIELD].device:
             txt_txt_sim_st = txt_txt_sim_st.to(batch[IMAGE_FIELD].device)
 
-        loss = (f.cross_entropy(image_logits, ground_truth) + f.cross_entropy(caption_logits, ground_truth)).div(2)
-        self.log_dict({'val_loss': loss.item(),
+        self.log_dict({'val_loss': outputs.loss.item(),
                        'val_mse_sentence_transformer': compute_mse_similarities(img_img_sim, img_txt_sim,
                                                                                 txt_txt_sim_clip, txt_txt_sim_st),
                        'val_acc': (acc_i + acc_t) / 2 / len(image_logits)},
-                      batch_size=self._batch_size,
                       prog_bar=True, on_step=True, on_epoch=True, logger=True, enable_graph=True)
 
     def encode_image(self, image, teacher=False):
@@ -219,13 +177,8 @@ class CLIPWrapper(l.LightningModule):
         return self._student.get_text_features(caption) if teacher is False else \
             self._teacher.get_text_features(caption)
 
-    def forward(self, inputs):
-        outputs = self._student(**inputs)
-
-        return outputs.logits_per_image, outputs.logits_per_text
-        # logits = f.normalize(self.encode_image(image)) @ f.normalize(self.encode_text(caption)).t()
-        #
-        # return logits, logits.t()  # image logits, caption logits
+    def forward(self, inputs, return_loss: bool = True):
+        return self._student(**inputs, return_loss=return_loss)
 
     def update_teacher(self):
         for teacher, student in zip(self._teacher.parameters(), self._student.parameters()):
@@ -237,11 +190,15 @@ class CLIPWrapper(l.LightningModule):
 
         # Source: https://github.com/PyTorchLightning/pytorch-lightning/issues/5449
         # Source: https://github.com/openai/CLIP/issues/107
-        lr_scheduler = CosineAnnealingWarmupRestarts(optimizer=optimizer,
-                                                     first_cycle_steps=self.trainer.estimated_stepping_batches,
-                                                     max_lr=self._lr,
-                                                     warmup_steps=min(self._warmup_steps,
-                                                                      self.trainer.estimated_stepping_batches - 1))
+        if self._use_warmup == "cosine":
+            lr_scheduler = CosineAnnealingWarmupRestarts(optimizer=optimizer,
+                                                         first_cycle_steps=self.trainer.estimated_stepping_batches,
+                                                         max_lr=self._lr,
+                                                         warmup_steps=min(self._warmup_steps,
+                                                                          self.trainer.estimated_stepping_batches - 1))
+        else:
+            lr_scheduler = LinearLR(optimizer, start_factor=self._start_factor, end_factor=self._end_factor,
+                                    total_iters=self._total_iters)
 
         return {
             "optimizer": optimizer,
