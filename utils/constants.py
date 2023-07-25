@@ -1,8 +1,7 @@
 import torch
-
 from torchvision import transforms as t
-from transformations import RandomSharpness
 
+from transformations import RandomSharpness
 
 IMAGE_DEFAULT_C = 3
 IMAGE_DEFAULT_W = 224
@@ -42,3 +41,4 @@ BATCH_SIZE = 512
 MINIBATCH_SIZE = 0
 IMAGE_FIELD = "pixel_values"
 CAPTION_FIELD = "input_ids"
+RAW_FIELD_CAPTION = "raw_captions"

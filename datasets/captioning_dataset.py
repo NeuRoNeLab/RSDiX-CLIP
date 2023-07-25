@@ -1,21 +1,17 @@
 import os
 import random
 from typing import List
-
 import lightning as l
 import pandas as pd
 import torch
 from PIL import Image
-from torch import cuda
-from torch.backends import mps
 from torch.utils.data import Dataset, DataLoader, random_split, default_collate, ConcatDataset
 from torchvision import transforms as t
 from torchvision.io import read_image
 from transformers import CLIPProcessor
-
 from transformations import BackTranslation
 from utils import DEFAULT_TRANSFORMS, IMAGE_DEFAULT_C, IMAGE_DEFAULT_H, IMAGE_DEFAULT_W, TRAIN_SPLIT_PERCENTAGE, \
-    VAL_SPLIT_PERCENTAGE
+    VAL_SPLIT_PERCENTAGE, RAW_FIELD_CAPTION, ListWrapper
 
 
 class CaptioningDataset(Dataset):
@@ -30,6 +26,7 @@ class CaptioningDataset(Dataset):
                 target_transform (callable, optional): Optional transform to be applied on a caption.
                 train (bool): Whether to apply transforms to augment data based on the current stage.
         """
+        torch.multiprocessing.set_sharing_strategy('file_system')
         # get annotations_file extension
         annotations_file_ext = annotations_file.split(".")[-1]
         if annotations_file_ext == "json":
@@ -43,7 +40,6 @@ class CaptioningDataset(Dataset):
         self._img_dir = img_dir
         self._img_transform = img_transform if img_transform is not None else DEFAULT_TRANSFORMS
         self._target_transform = target_transform
-        self._device = "cuda" if cuda.is_available() else "mps" if mps.is_available() else "cpu"
         self._train = train
         self._dataset_name = dataset_name
         self._back_translation = BackTranslation()
@@ -63,10 +59,6 @@ class CaptioningDataset(Dataset):
     @property
     def target_transform(self):
         return self._target_transform
-
-    @property
-    def device(self) -> str:
-        return self._device
 
     @property
     def train(self) -> bool:
@@ -95,9 +87,14 @@ class CaptioningDataset(Dataset):
         if img_ext != 'jpeg' and img_name != 'png':
             image = t.PILToTensor()(Image.open(img_name))
         else:
-            image = read_image(img_name).to(self._device)
+            image = read_image(img_name)
         # get a random sentence from the five sentences associated to each image
         caption = random.choice(row["sentences"])["raw"]
+
+        # making sure it is a 3 channel image (RBG)
+        image_shape = list(image.shape)
+        if image_shape[0] != IMAGE_DEFAULT_C:
+            image = t.PILToTensor()(Image.open(img_name).convert('RGB'))
 
         # a tensor image shape could not be equal to the shape expected
         if list(image.shape) != [IMAGE_DEFAULT_C, IMAGE_DEFAULT_H, IMAGE_DEFAULT_W]:
@@ -208,4 +205,5 @@ class CaptioningDataModule(l.LightningDataModule):
         image, caption = default_collate(examples)
         encodings = self._processor(images=image, text=list(caption), truncation=True, padding="max_length",
                                     max_length=77, return_tensors="pt")
+        encodings[RAW_FIELD_CAPTION] = ListWrapper(list(caption))
         return encodings

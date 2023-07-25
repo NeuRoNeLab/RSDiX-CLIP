@@ -2,6 +2,5 @@ script: train_finetune_cli.py
 config_file: config.yaml
 attr_keys:
   model:
-    lr: 1e-5,2e-5,5e-5,1e-4,3e-4
-    weight_decay: 0.02,0.01,0.05
-    minibatch_size: 128
+    lr: 5e-4,5e-6,1e-5,2e-5,5e-5,1e-4,3e-4
+    weight_decay: 0.01,0.1

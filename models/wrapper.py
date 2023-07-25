@@ -1,263 +1,189 @@
-import copy
-import math
-
-import lightning
 import lightning as l
-import numpy as np
-import pytorch_lightning
 import torch
-import torch.nn.functional as f
 import yaml
-from cosine_annealing_warmup import CosineAnnealingWarmupRestarts
+import copy
+
 from transformers import CLIPModel
+from typing import Optional
 
-from utils import CONFIG_DIR, VIT_CONFIG_FILE, MINIBATCH_SIZE, BATCH_SIZE, IMAGE_FIELD, CAPTION_FIELD, BETAS
+from loss import DistillationLoss
+from sentence_transformers import SentenceTransformer
+from cosine_annealing_warmup import CosineAnnealingWarmupRestarts
+from torch.optim.lr_scheduler import LinearLR
 
-
-def compute_similarities(i_emb, t_emb):
-    sim_ii, sim_tt = i_emb @ i_emb.t(), t_emb @ t_emb.t()
-    sim_it, sim_ti = i_emb @ t_emb.t(), t_emb @ t_emb.t()
-    return sim_ii, sim_tt, sim_it, sim_ti
-
-
-def ema(s, t):
-    return s * (1 - 0.999) + t * 0.999
+from utils import CONFIG_DIR, VIT_CONFIG_FILE, IMAGE_FIELD, CAPTION_FIELD, BETAS, \
+    RAW_FIELD_CAPTION
+from .model_utils import compute_mse, compute_accuracy, compute_teacher_targets
+from .ema import ExponentialMovingAverage
 
 
 class CLIPWrapper(l.LightningModule):
+    """
+    A Pytorch-Lightning based wrapper for Hugging Face's CLIP implementation.
+    """
 
-    def __init__(self, model: str = "openai/clip-vit-base-patch32", minibatch_size: int = MINIBATCH_SIZE,
-                 kl_coeff: float = 1.0, lr: float = None, warmup_steps: int = 0, betas: tuple[float, float] = BETAS,
-                 eps: float = 1e-08, weight_decay: float = 0.2):
+    _st_model = SentenceTransformer("all-MiniLM-L6-v2")
+
+    def __init__(self, model: str = "openai/clip-vit-base-patch32",
+                 lr: Optional[float] = None, alpha: float = 0.5, ema_decay: float = 0.999,
+                 weight_decay: float = 0.1, start_factor: float = 0.3333333333333333,
+                 end_factor: float = 1.0, total_iters: int = 5, use_warmup: str = "cosine",
+                 warmup_steps: int = 0, eps: float = 1e-08,
+                 betas: tuple[float, float] = BETAS,
+                 sinkhorn_lambda: float = 0.1, sinkhorn_iter: int = 4, ii_coeff: float = 1.0, tt_coeff: float = 1.0,
+                 remove_diag: bool = False):
         super().__init__()
 
+        if use_warmup != "cosine" and use_warmup != "linear":
+            raise ValueError(f"{use_warmup} not supported. Try 'cosine' or 'linear'.")
+
+        # Init main model
         self._student = CLIPModel.from_pretrained(model)
 
+        # If no LR is passed, the default one from the model's configuration will be used
+        # Note: Only Visual Transformers are currently supported
         if lr is None:
-            model_type = "B" if "base" in model else "L"
             model_size = model.split("patch", 1)[1]
-            model_name = f"ViT-{model_type}/{model_size}"
+            model_name = f"Vit-B/{model_size}"
 
-            with open(f"{CONFIG_DIR}/{VIT_CONFIG_FILE}") as stream:
+            with open(f"f{CONFIG_DIR}/{VIT_CONFIG_FILE}") as stream:
                 config = yaml.safe_load(stream)[model_name]
 
             self._lr = float(config["learning_rate"])
         else:
             self._lr = lr
 
-        if minibatch_size == MINIBATCH_SIZE:
-            self._minibatch_size = BATCH_SIZE
-        else:
-            self._minibatch_size = minibatch_size
-
-        self._warmup_steps = warmup_steps
-        self._betas = betas
-        self._eps = eps
+        self._use_warmup = use_warmup
         self._weight_decay = weight_decay
-        # Source: https://lightning.ai/docs/pytorch/stable/accelerators/accelerator_prepare.html
-        self.register_buffer("_sink_temp", torch.nn.Parameter(torch.ones([]) * self._student.logit_scale.item()))
+        self._betas = betas
+        self._alpha = alpha
+        self._eps = eps
 
-        # init self-distillation model
-        self._teacher = copy.deepcopy(self._student)
-
-        self._kl_coeff = kl_coeff
-
-        # enable manual backward
-        self.automatic_optimization = False
-
-        # save hyperparameters when checkpointing
-        self.save_hyperparameters(ignore=["image_encoder", "text_encoder"])
-
-    def get_embeddings(self, images, captions, teacher=False):
-        image_embs = [f.normalize(self.encode_image(image, teacher=teacher), dim=1) for image in images]
-        caption_embs = [f.normalize(self.encode_text(caption, teacher=teacher), dim=1) for caption in captions]
-
-        # sync and gather data from all devices
-        image_embs, caption_embs = self.all_gather(torch.cat(image_embs)), self.all_gather(torch.cat(caption_embs))
-
-        if len(image_embs.shape) == 3:
-            image_embs = list(image_embs)
-            caption_embs = list(caption_embs)
+        if use_warmup == "cosine":
+            self._warmup_steps = warmup_steps
         else:
-            image_embs = [image_embs]
-            caption_embs = [caption_embs]
+            self._start_factor = start_factor
+            self._end_factor = end_factor
+            self._total_iters = total_iters
 
-        return image_embs, caption_embs
+        # Init self-distillation loss and teacher model
+        self._dist_loss = DistillationLoss()
+        self._teacher = copy.deepcopy(self._student)
+        self._ema_model = ExponentialMovingAverage(self._student.parameters(), decay=ema_decay)
 
-    def compute_kl_div(self, logit_scores, img_target, caption_target, reduction="batchmean"):
-        return (f.kl_div(f.log_softmax(logit_scores * self._sink_temp, dim=-1), img_target, reduction=reduction) +
-                f.kl_div(f.log_softmax(logit_scores.t() * self._sink_temp, dim=-1), caption_target,
-                         reduction=reduction)) / 2 * self._kl_coeff
+        self._sinkhorn_lambda = sinkhorn_lambda
+        self._sinkhorn_iter = sinkhorn_iter
+        self._ii_coeff = ii_coeff
+        self._tt_coeff = tt_coeff
+        self._remove_diag = float(remove_diag)
 
-    def compute_training_loss(self, image_chunks, caption_chunks, student_images_embs, student_caption_embs,
-                              ground_truth, img_target, caption_target):
-        # image loss
-        for i, img_chk in enumerate(image_chunks):
-            # TODO: maybe its not necessary
-            images_embs = copy.deepcopy(student_images_embs)
-            images_embs[self.global_rank][i * self._minibatch_size:(i + 1) * self._minibatch_size] = \
-                f.normalize(self.encode_image(img_chk), dim=1)
-            # scaled logits with self.student.logit_scale()
-            image_logits = torch.cat(images_embs) @ torch.cat(student_caption_embs).t()
-            # unscaled logits DO NOT DIFFERENTIATE THROUGH IT
-            image_logits_unscaled = image_logits / self._student.logit_scale.detach().item()
-            loss = (f.cross_entropy(image_logits, ground_truth) + f.cross_entropy(image_logits.t(),
-                                                                                  ground_truth)) / 2
-            loss += self.compute_kl_div(image_logits_unscaled, img_target, caption_target)
-            loss.requires_grad_()
-            self.manual_backward(loss)
+        # Save hyperparameters when checkpointing
+        self.save_hyperparameters()
 
-        # caption loss
-        for i, caption_chk in enumerate(caption_chunks):
-            # TODO: maybe its not necessary
-            captions_embs = copy.deepcopy(student_caption_embs)
-            captions_embs[self.global_rank][i * self._minibatch_size:(i + 1) * self._minibatch_size] = \
-                f.normalize(self.encode_text(caption_chk), dim=1)
-            # scaled logits with self.student.logit_scale()
-            caption_logits = torch.cat(student_images_embs) @ torch.cat(captions_embs).t()
-            # unscaled logits DO NOT DIFFERENTIATE THROUGH IT
-            caption_logits_unscaled = caption_logits / self._student.logit_scale.detach().item()
-            loss = (f.cross_entropy(caption_logits, ground_truth) + f.cross_entropy(caption_logits.t(),
-                                                                                    ground_truth)) / 2
-            loss += self.compute_kl_div(caption_logits_unscaled, img_target, caption_target)
-            loss.requires_grad_()
-            self.manual_backward(loss)
+    def get_embeddings(self, images, text, teacher: bool = False):
+        # Get the embeddings
+        images_embeds = self.encode_image(images=images, teacher=teacher)
+        text_embeds = self.encode_text(text=text, teacher=teacher)
 
-    # Training loss: https://github.com/openai/CLIP/issues/83
-    # Multi-GPU support: https://github.com/MicPie/clasp
-    def training_step(self, batch, batch_idx):
-        # get optimizers and lr scheduler
-        optimizer = self.optimizers()
+        # Normalize them
+        images_embeds = images_embeds / images_embeds.norm(p=2, dim=-1, keepdim=True)
+        text_embeds = text_embeds / text_embeds.norm(p=2, dim=-1, keepdim=True)
 
-        image, caption = batch[IMAGE_FIELD], batch[CAPTION_FIELD]
-        n = math.ceil(len(image) // self._minibatch_size)
-        image_chunks = torch.chunk(image, n)
-        caption_chunks_ids = torch.chunk(torch.arange(len(image)), n)
+        return images_embeds, text_embeds
 
-        # getting the caption for the current gpu
-        # then stacking them to match image_chunks' type (t
-        caption_chunks = []
-        caption = list(caption)
-        for s in caption_chunks_ids[0]:
-            caption_chunks.append(caption[s.item()])
-        caption_chunks = (torch.stack(caption_chunks),)
+    def training_step(self, batch, batch_idx) -> torch.Tensor:
+        images, text, raw_text = batch[IMAGE_FIELD], batch[CAPTION_FIELD], batch.pop(RAW_FIELD_CAPTION)
 
-        # calculate original statistics
+        # Update the teacher model
+        self.update_teacher()
+
+        # Get student embeddings and compute unscaled logits
+        student_images_embeds, student_text_embeds = self.get_embeddings(images=images, text=text)
+        unscaled_student_images_logits = torch.matmul(student_images_embeds, student_text_embeds.t())
+
+        # Compute teacher embeddings and self-distillation targets
         with torch.no_grad():
-            # student
-            student_images_embs, student_caption_embs = self.get_embeddings(image_chunks, caption_chunks)
+            teacher_images_embeds, teacher_text_embeds = self.get_embeddings(images=images, text=text, teacher=True)
+            teacher_images_embeds = teacher_images_embeds.detach()
+            teacher_text_embeds = teacher_text_embeds.detach()
+            images_target_prob, text_target_prob = compute_teacher_targets(teacher_images_embeds, teacher_text_embeds,
+                                                                           self._ii_coeff, self._tt_coeff,
+                                                                           self._sinkhorn_lambda, self._sinkhorn_iter,
+                                                                           self._remove_diag)
+        # Compute self-distillation loss
+        images_dist_loss = self._dist_loss(pred=unscaled_student_images_logits, target_prob=images_target_prob)
+        text_dist_loss = self._dist_loss(pred=unscaled_student_images_logits.t(), target_prob=text_target_prob)
+        distillation_loss = (images_dist_loss + text_dist_loss) / 2
 
-            # scaled logits with self.student.logit_scale()
-            # TODO: check if self.forward is equivalent
-            student_image_logits = torch.cat(student_images_embs) @ torch.cat(student_caption_embs).t()
-            # unscaled logits DO NOT DIFFERENTIATE THROUGH IT
-            student_image_logits_unscaled = student_image_logits / self._student.logit_scale.detach().item()
-            # contrastive loss ground truth -> Identity matrix
-            ground_truth = torch.arange(len(student_image_logits)).long().to(student_image_logits.device)
-            loss = (f.cross_entropy(student_image_logits, ground_truth) + f.cross_entropy(student_image_logits.t(),
-                                                                                          ground_truth)).div(2)
+        # Compute contrastive loss
+        contrastive_loss = self.forward(batch).loss
 
-            acc_i = (torch.argmax(student_image_logits, 1) == ground_truth).sum()
-            acc_t = (torch.argmax(student_image_logits, 0) == ground_truth).sum()
+        # Total loss
+        loss = (self._alpha * contrastive_loss) + ((1 - self._alpha) * distillation_loss)
 
-            # teacher
-            teacher_image_embs, teacher_captions_embs = self.get_embeddings(image_chunks, caption_chunks, teacher=True)
+        # Compute training metrics
+        # CLIP/Sentence-BERT MSE in embeddings similarities
+        mse = compute_mse(clip_image_embeddings=student_images_embeds, clip_text_embeddings=student_text_embeds,
+                          st_embeddings=self._st_model.encode(raw_text), device=images.device)
 
-            sim_ii, sim_tt, sim_it, sim_ti = compute_similarities(torch.cat(teacher_image_embs),
-                                                                  torch.cat(teacher_captions_embs))
+        # Compute accuracy (contrastive loss ground truth = identity matrix)
+        accuracy = compute_accuracy(images_logits=unscaled_student_images_logits, batch_size=len(images))
 
-            # optimal transport
-            img_cost = - (sim_ii + sim_tt + sim_it)
-            caption_cost = - (sim_ii + sim_tt + sim_ti)
-            img_target = self.sinkhorn(img_cost)
-            caption_target = self.sinkhorn(caption_cost)
+        # Log metrics
+        self.log_dict({'loss': loss.item(),
+                       'mse_sentence_transformer': mse,
+                       'acc': accuracy},
+                      prog_bar=True, on_step=True, on_epoch=True, logger=True, enable_graph=True)
 
-            loss += self.compute_kl_div(student_image_logits_unscaled, img_target, caption_target)
-            self.log_dict({'loss': loss,
-                           'acc': (acc_i + acc_t) / 2 / len(image) / len(student_images_embs)}, prog_bar=True,
-                          on_step=True, on_epoch=True, logger=True, enable_graph=True)
+        return loss
 
-            if isinstance(optimizer, list):
-                optimizer = optimizer[0]
-            optimizer.zero_grad()
+    def validation_step(self, batch, batch_idx) -> torch.Tensor:
+        images, text, raw_text = batch[IMAGE_FIELD], batch[CAPTION_FIELD], batch.pop(RAW_FIELD_CAPTION)
+        images_embeds, text_embeds = self.get_embeddings(images=images, text=text)
 
-            self.compute_training_loss(image_chunks, caption_chunks, student_images_embs, student_caption_embs,
-                                       ground_truth, img_target, caption_target)
+        outputs = self.forward(batch)
 
-            optimizer.step()
-            lr_scheduler = self.lr_schedulers()
-            lr_scheduler.step()
-            self._student.logit_scale.data.clamp_(-np.log(100), np.log(100))
-            self._sink_temp.data.clamp_(-np.log(100), np.log(100))
-            self.update_teacher()
+        accuracy = compute_accuracy(images_logits=outputs.logits_per_image, batch_size=len(images_embeds))
+        mse = compute_mse(clip_image_embeddings=images_embeds, clip_text_embeddings=text_embeds,
+                          st_embeddings=self._st_model.encode(raw_text), device=images.device)
 
-    def validation_step(self, batch, batch_idx):
-        image_logits, caption_logits = self.forward(batch)
-        ground_truth = torch.arange(len(image_logits), device=batch[IMAGE_FIELD].device)
+        self.log_dict({'val_loss': outputs.loss.item(),
+                       'val_mse_sentence_transformer': mse,
+                       'val_acc': accuracy},
+                      prog_bar=True, on_step=True, on_epoch=True, logger=True, enable_graph=True)
 
-        acc_i = (torch.argmax(image_logits, 1) == ground_truth).sum()
-        acc_t = (torch.argmax(caption_logits, 1) == ground_truth).sum()
+        return outputs.loss
 
-        loss = (f.cross_entropy(image_logits, ground_truth) + f.cross_entropy(caption_logits, ground_truth)).div(2)
-        self.log_dict({'val_loss': loss,
-                       'val_acc': (acc_i + acc_t) / 2 / len(image_logits) / len(image_logits)}, prog_bar=True,
-                      on_step=True, on_epoch=True, logger=True, enable_graph=True)
+    def encode_image(self, images: torch.Tensor, teacher: bool = False) -> torch.FloatTensor:
+        return self._student.get_image_features(images) if teacher is False else \
+            self._teacher.get_image_features(images)
 
-    def encode_image(self, image, teacher=False):
-        # image = inputs["pixel_values"]
-        return self._student.get_image_features(image) if teacher is False else \
-            self._teacher.get_image_features(image)
+    def encode_text(self, text: torch.Tensor, teacher: bool = False) -> torch.FloatTensor:
+        return self._student.get_text_features(text) if teacher is False else \
+            self._teacher.get_text_features(text)
 
-    def encode_text(self, caption, teacher=False):
-        # caption = inputs["input_ids"]
-        return self._student.get_text_features(caption) if teacher is False else \
-            self._teacher.get_text_features(caption)
-
-    def forward(self, inputs):
-        outputs = self._student(**inputs)
-
-        return outputs.logits_per_image, outputs.logits_per_image.t()
-        # logits = f.normalize(self.encode_image(image)) @ f.normalize(self.encode_text(caption)).t()
-        #
-        # return logits, logits.t()  # image logits, caption logits
+    def forward(self, inputs, return_loss: bool = True):
+        return self._student(**inputs, return_loss=return_loss)
 
     def update_teacher(self):
-        for teacher, student in zip(self._teacher.parameters(), self._student.parameters()):
-            teacher.data.copy_(ema(student.data, teacher.data))
+        self._ema_model.update(self._student.parameters())
+        self._ema_model.copy_to(self._teacher.parameters())
 
-    # Source: https://github.com/facebookresearch/swav/blob/5e073db0cc69dea22aa75e92bfdd75011e888f28/main_swav.py#L354
-    def sinkhorn(self, out):
-        q = torch.exp(out / 0.05).t()  # q is k-by-b for consistency with notations from our paper
-        b = q.shape[1]  # number of samples to assign
-        k = q.shape[0]  # how many prototypes
-
-        # make the matrix sums to 1
-        sum_q = torch.sum(q)
-        q /= sum_q
-
-        for it in range(3):
-            # normalize each row: total weight per prototype must be 1/k
-            sum_of_rows = torch.sum(q, dim=1, keepdim=True)
-            q /= sum_of_rows
-            q /= k
-
-            # normalize each column: total weight per sample must be 1/b
-            q /= torch.sum(q, dim=0, keepdim=True)
-            q /= b
-
-        q *= b  # the columns must sum to 1 so that q is an assignment
-        return q.t()
-
-    def configure_optimizers(self):
+    def configure_optimizers(self) -> dict:
         optimizer = torch.optim.AdamW(params=self._student.parameters(), lr=self._lr, eps=self._eps,
                                       betas=self._betas, weight_decay=self._weight_decay)
 
-        # Source: https://github.com/PyTorchLightning/pytorch-lightning/issues/5449
-        # Source: https://github.com/openai/CLIP/issues/107
-        lr_scheduler = CosineAnnealingWarmupRestarts(optimizer=optimizer,
-                                                     first_cycle_steps=self.trainer.estimated_stepping_batches,
-                                                     max_lr=self._lr,
-                                                     warmup_steps=self._warmup_steps)
+        if self._use_warmup == "cosine":
+            # Source: https://github.com/PyTorchLightning/pytorch-lightning/issues/5449
+            # Source: https://github.com/openai/CLIP/issues/107
+            lr_scheduler = CosineAnnealingWarmupRestarts(optimizer=optimizer,
+                                                         first_cycle_steps=self.trainer.estimated_stepping_batches,
+                                                         max_lr=self._lr,
+                                                         warmup_steps=min(self._warmup_steps,
+                                                                          self.trainer.estimated_stepping_batches - 1))
+        else:
+            lr_scheduler = LinearLR(optimizer, start_factor=self._start_factor, end_factor=self._end_factor,
+                                    total_iters=self._total_iters)
 
         return {
             "optimizer": optimizer,
