@@ -9,6 +9,7 @@ from sentence_transformers import SentenceTransformer
 from torch.optim.lr_scheduler import LinearLR
 from transformers import CLIPModel
 
+from loss import DistillationLoss
 from utils import CONFIG_DIR, VIT_CONFIG_FILE, MINIBATCH_SIZE, BATCH_SIZE, IMAGE_FIELD, CAPTION_FIELD, BETAS, \
     RAW_FIELD_CAPTION
 from .model_utils import ema, compute_st_similarities, compute_mse_similarities, \
@@ -63,6 +64,7 @@ class CLIPWrapper(l.LightningModule):
         self.register_buffer("_sink_temp", torch.nn.Parameter(torch.ones([]) * self._student.logit_scale.item()))
 
         # init self-distillation model
+        self.dist_loss = DistillationLoss()
         self._teacher = copy.deepcopy(self._student)
 
         self._kl_coeff = kl_coeff
@@ -80,8 +82,12 @@ class CLIPWrapper(l.LightningModule):
         self._lr = lr
 
     def get_embeddings(self, images, captions, teacher=False):
-        images_embeds = f.normalize(self.encode_image(image=images, teacher=teacher))
-        captions_embeds = f.normalize(self.encode_text(caption=captions, teacher=teacher))
+        images_embeds = self.encode_image(image=images, teacher=teacher)
+        captions_embeds = self.encode_text(caption=captions, teacher=teacher)
+
+        # normalized features
+        images_embeds = images_embeds / images_embeds.norm(p=2, dim=-1, keepdim=True)
+        captions_embeds = captions_embeds / captions_embeds.norm(p=2, dim=-1, keepdim=True)
 
         return images_embeds, captions_embeds
 
@@ -112,12 +118,16 @@ class CLIPWrapper(l.LightningModule):
 
         # contrastive loss ground truth -> Identity matrix
         ground_truth = torch.arange(len(student_image_logits_unscaled)).long().to(student_image_logits_unscaled.device)
-        distillation_loss = (f.kl_div(f.log_softmax(student_image_logits_unscaled * sink_temp, dim=-1),
-                                      img_target,
-                                      reduction="batchmean") +
-                             f.kl_div(f.log_softmax(student_image_logits_unscaled.t() * sink_temp, dim=-1),
-                                      caption_target,
-                                      reduction="batchmean")) / 2 * self._kl_coeff
+        # distillation_loss = (f.kl_div(f.log_softmax(student_image_logits_unscaled * sink_temp, dim=-1),
+        #                               img_target,
+        #                               reduction="batchmean") +
+        #                      f.kl_div(f.log_softmax(student_image_logits_unscaled.t() * sink_temp, dim=-1),
+        #                               caption_target,
+        #                               reduction="batchmean")) / 2 * self._kl_coeff
+        img_dist_loss = self.dist_loss(pred=student_image_logits_unscaled, target=img_target)
+        txt_dist_loss = self.dist_loss(pred=student_image_logits_unscaled.t(), target=caption_target)
+
+        distillation_loss = img_dist_loss + txt_dist_loss
 
         img_img_sim, img_txt_sim, txt_txt_sim_clip, txt_txt_sim_st \
             = compute_st_similarities(student_images_embs, student_caption_embs,

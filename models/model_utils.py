@@ -8,29 +8,68 @@ from sentence_transformers.util import cos_sim
 REDUCTIONS: final = frozenset(["mean", "average", "avg", "sum", "add", "none"])
 
 
+def _has_nan_or_inf(x):
+    return torch.isnan(x).any() or torch.isinf(x).any()
+
+
 @torch.no_grad()
+def sinkhorn(cost_mat, eps=0.05, niter=5, r_prob=None, c_prob=None):
+    """
+    cost_mat: s1, s2, ..., sn, M, N
+    r_prob: s1, s2, ..., sn, M
+    c_prob: s1, s2, ..., sn, N
+    """
+    Q = torch.exp(-cost_mat / eps)
+    Q = Q / Q.sum(dim=[-2, -1], keepdim=True)
+    M, N = Q.shape[-2], Q.shape[-1]
+
+    if r_prob is not None:
+        # s1, ..., sn, M -> s1, ..., sn, M, 1
+        r_prob = (r_prob / r_prob.sum(dim=-1, keepdim=True)).unsqueeze(-1)
+        assert not _has_nan_or_inf(r_prob)
+    else:
+        r_prob = 1 / M
+
+    if c_prob is not None:
+        # s1, ..., sn, N -> s1, ..., sn, 1, N
+        c_prob = (c_prob / c_prob.sum(dim=-1, keepdim=True)).unsqueeze(-2)
+        assert not _has_nan_or_inf(c_prob)
+    else:
+        c_prob = 1 / N
+
+    for _ in range(niter):
+        # normalize each row: total weight per row must be r_prob
+        Q /= Q.sum(dim=-1, keepdim=True)
+        Q *= r_prob
+        # normalize each column: total weight per column must be c_prob
+        Q /= Q.sum(dim=-2, keepdim=True)
+        Q *= c_prob
+    return Q
+
+
+# @torch.no_grad()
 # Source: https://github.com/facebookresearch/swav/blob/5e073db0cc69dea22aa75e92bfdd75011e888f28/main_swav.py#L354
-def sinkhorn(out):
-    q = torch.exp(out / 0.05).t()  # q is k-by-b for consistency with notations from our paper
-    b = q.shape[1]  # number of samples to assign
-    k = q.shape[0]  # how many prototypes
-
-    # make the matrix sums to 1
-    sum_q = torch.sum(q)
-    q /= sum_q
-
-    for it in range(3):
-        # normalize each row: total weight per prototype must be 1/k
-        sum_of_rows = torch.sum(q, dim=1, keepdim=True)
-        q /= sum_of_rows
-        q /= k
-
-        # normalize each column: total weight per sample must be 1/b
-        q /= torch.sum(q, dim=0, keepdim=True)
-        q /= b
-
-    q *= b  # the columns must sum to 1 so that q is an assignment
-    return q.t()
+# def sinkhorn(out):
+#     q = torch.exp(out / 0.05).t()  # q is k-by-b for consistency with notations from our paper
+#     b = q.shape[1]  # number of samples to assign
+#     k = q.shape[0]  # how many prototypes
+#
+#     # make the matrix sums to 1
+#     sum_q = torch.sum(q)
+#     q /= sum_q
+#
+#     for it in range(3):
+#         # normalize each row: total weight per prototype must be 1/k
+#         sum_of_rows = torch.sum(q, dim=1, keepdim=True)
+#         q /= sum_of_rows
+#         q /= k
+#
+#         # normalize each column: total weight per sample must be 1/b
+#         q /= torch.sum(q, dim=0, keepdim=True)
+#         q /= b
+#
+#     q *= b  # the columns must sum to 1 so that q is an assignment
+#     return q.t()
 
 
 @torch.no_grad()
@@ -51,6 +90,9 @@ def compute_teacher_targets(teacher_image_embs, teacher_captions_embs):
     img_cost = - (sim_ii + sim_tt + sim_it)
     caption_cost = - (sim_ii + sim_tt + sim_ti)
     img_target, caption_target = sinkhorn(img_cost), sinkhorn(caption_cost)
+
+    img_target /= img_target.sum(dim=1, keepdim=True)
+    caption_target /= caption_target.sum(dim=1, keepdim=True)
 
     return img_target, caption_target
 
