@@ -12,6 +12,7 @@ from transformers import CLIPModel
 from loss import DistillationLoss
 from utils import CONFIG_DIR, VIT_CONFIG_FILE, MINIBATCH_SIZE, BATCH_SIZE, IMAGE_FIELD, CAPTION_FIELD, BETAS, \
     RAW_FIELD_CAPTION
+from .ema import ExponentialMovingAverage
 from .model_utils import ema, compute_st_similarities, compute_mse_similarities, \
     compute_teacher_targets
 
@@ -53,6 +54,10 @@ class CLIPWrapper(l.LightningModule):
         self._betas = betas
         self._alpha = alpha
         self._eps = eps
+
+        self.ema_model = ExponentialMovingAverage(
+            self.student.parameters(), decay=0.999,
+        )
 
         if use_warmup == "cosine":
             self._warmup_steps = warmup_steps
@@ -124,8 +129,8 @@ class CLIPWrapper(l.LightningModule):
         #                      f.kl_div(f.log_softmax(student_image_logits_unscaled.t() * sink_temp, dim=-1),
         #                               caption_target,
         #                               reduction="batchmean")) / 2 * self._kl_coeff
-        img_dist_loss = self.dist_loss(pred=student_image_logits_unscaled, target=img_target)
-        txt_dist_loss = self.dist_loss(pred=student_image_logits_unscaled.t(), target=caption_target)
+        img_dist_loss = self.dist_loss(pred=student_image_logits_unscaled, target_prob=img_target)
+        txt_dist_loss = self.dist_loss(pred=student_image_logits_unscaled.t(), target_prob=caption_target)
 
         distillation_loss = img_dist_loss + txt_dist_loss
 
@@ -147,7 +152,8 @@ class CLIPWrapper(l.LightningModule):
                        'acc': (acc_i + acc_t) / 2 / len(images)},
                       prog_bar=True, on_step=True, on_epoch=True, logger=True, enable_graph=True)
 
-        self.update_teacher()
+        self.ema_model.update(self._student.parameters())
+        self.ema_model.copy_to(self._teacher.parameters())
 
         return loss
 

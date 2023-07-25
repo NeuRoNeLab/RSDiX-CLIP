@@ -84,6 +84,9 @@ def compute_teacher_targets(teacher_image_embs, teacher_captions_embs):
     sim_ii, sim_tt, sim_it, sim_ti = compute_similarities(torch.cat(teacher_image_embs),
                                                           torch.cat(teacher_captions_embs))
 
+    diag = (torch.eye(*sim_ii.shape) * 0 * 1e2).to(teacher_image_embs[0].device)
+    sim_ii = (sim_ii - diag) * 1.0
+    sim_tt = (sim_tt - diag) * 1.0
     # optimal transport
     # Perform sinkhorn based on the cost matrix, and then row-normalize
     # to get target probability.
