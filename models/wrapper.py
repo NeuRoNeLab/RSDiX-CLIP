@@ -44,9 +44,9 @@ class CLIPWrapper(l.LightningModule):
         # Note: Only Visual Transformers are currently supported
         if lr is None:
             model_size = model.split("patch", 1)[1]
-            model_name = f"Vit-B/{model_size}"
+            model_name = f"ViT-B/{model_size}"
 
-            with open(f"f{CONFIG_DIR}/{VIT_CONFIG_FILE}") as stream:
+            with open(f"{CONFIG_DIR}/{VIT_CONFIG_FILE}") as stream:
                 config = yaml.safe_load(stream)[model_name]
 
             self._lr = float(config["learning_rate"])

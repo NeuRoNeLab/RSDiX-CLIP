@@ -1,1 +1,1 @@
-from dist_loss import DistillationLoss
+from .dist_loss import DistillationLoss

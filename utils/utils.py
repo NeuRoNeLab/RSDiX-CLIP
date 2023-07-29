@@ -45,3 +45,26 @@ class ListWrapper(list):
     def to(self, device):
         self._device = device
         return self
+
+
+if __name__ == "__main__":
+    # separate rsicd test images from the others
+    data = []
+    with open("./data/RSICD/dataset_rsicd.json") as json_file:
+        for line in json_file:
+            data.append(json.loads(line))
+    test_images = {"images": [], "dataset": data["dataset"]}
+    new_data = {"images": [], "dataset": data["dataset"]}
+
+    for idx, image in enumerate(data["images"]):
+        if image["split"] == "test":
+            test_images["images"].append(image)
+        else:
+            new_data["images"].append(image)
+
+    # overwrite existing dataset
+    with open("./data/RSICD/dataset_rsicd.json", "w") as json_file:
+        json.dump(new_data, json_file)
+
+    with open("./data/RSICD/dataset_rsicd_test.json", "w") as json_file:
+        json.dump(test_images, json_file)
