@@ -5,11 +5,13 @@ import torch
 import argparse
 
 import numpy as np
+import matplotlib.pyplot as plt
 
 from PIL import Image
 from transformers import CLIPProcessor, CLIPModel
 from torchvision import transforms as t
 from torchvision.io import read_image
+from tqdm import tqdm
 
 from models import CLIPWrapper
 
@@ -19,7 +21,7 @@ K_VALUES = [1, 3, 5, 10]
 
 
 def get_model_basename(model):
-    return '.'.join(model.split("/")[-1].split(".")[:-1])
+    return '.'.join(model.split(os.sep)[-1].split(".")[:-1])
 
 
 def get_eval_images(annotations_file: str) -> List[str]:
@@ -58,21 +60,20 @@ def predict_image(img_file, model, processor, eval_sentences, classes_names, k, 
 
     img_ext = img_file.split(".")[-1]
     if img_ext != 'jpeg' and img_file != 'png':
-        image = t.PILToTensor()(Image.open(img_file))
+        eval_image = t.PILToTensor()(Image.open(img_file))
     else:
-        image = read_image(img_file)
+        eval_image = read_image(img_file)
 
-    inputs = processor(images=image, text=eval_sentences, truncation=True, padding="max_length",
-                       max_length=77, return_tensors="pt")
+    inputs = processor(images=eval_image, text=eval_sentences, truncation=True, padding="max_length", return_tensors="pt")
 
     # move inputs to current device
-    for key in inputs.keys():
-        if isinstance(inputs[key], torch.Tensor):
-            inputs[key] = inputs[key].to(model.device)
+    # for key in inputs.keys():
+    #    if isinstance(inputs[key], torch.Tensor):
+    #        inputs[key] = inputs[key].to(model.device)
 
-    outputs = model(inputs)
-    probs = outputs.logits_per_image.softmax(dim=1)
-    probs = probs.to('cpu').detach()
+    outputs = model(inputs, return_loss=False)
+    probs = outputs.logits_per_image.softmax(dim=1).detach().numpy()
+#    probs = probs.to('cpu').detach()
     probs_np = np.asarray(probs)[0]
     probs_npi = np.argsort(-probs_np)
     predictions = [(classes_names[i], probs_np[i]) for i in probs_npi[0:k]]
@@ -86,9 +87,7 @@ def predict(model, processor, eval_images, classes_names, model_scores_file, img
     images_predicted = 0
 
     with open(model_scores_file, "w") as msf:
-        for eval_image in eval_images:
-            if images_predicted % 100:
-                print(f"{images_predicted} images evaluated out of {len(eval_images)}")
+        for eval_image in tqdm(eval_images):
             label, predictions = predict_image(eval_image, model, processor, eval_sentences,
                                                classes_names, max(K_VALUES), imgs_dir)
 
@@ -129,7 +128,7 @@ def main(args):
     print("Starting evaluation...")
     print(f"Loading checkpoint: {args.model_pth} and processor: {args.processor}")
 
-    model = CLIPWrapper.load_from_checkpoint(args.model_pth)
+    model = CLIPWrapper.load_from_checkpoint(args.model_pth).to('cpu')
     processor = CLIPProcessor.from_pretrained(args.processor)
 
     model_scores_file = os.path.join(args.scores_dir, get_model_basename(args.model_pth)) + ".tsv"
