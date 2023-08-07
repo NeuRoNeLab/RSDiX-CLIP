@@ -1,7 +1,23 @@
 import json
 import os
+from typing import Tuple
+
 import torch.cuda
 import xmltodict
+
+
+def get_splits(n_instances: int, train_split_percentage: float, val_split_percentage: float) -> Tuple[int, int, int]:
+    train_split = int(n_instances * train_split_percentage / 100)
+    remaining_split = n_instances - train_split
+    test_split = remaining_split - int(n_instances * val_split_percentage / 100)
+    val_split = remaining_split - test_split
+
+    # If no test set is required, then test_split is just remainder, that we can add to the train
+    if train_split_percentage + val_split_percentage >= 100.0:
+        train_split = train_split + test_split
+        test_split = 0
+
+    return train_split, val_split, test_split
 
 
 def nais_to_json(annotations_file: str, json_file_name: str = "dataset_nais"):

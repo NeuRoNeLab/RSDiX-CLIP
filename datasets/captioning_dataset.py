@@ -1,6 +1,7 @@
 import os
 import random
-from typing import List
+from typing import List, Union, Optional
+
 import lightning as l
 import pandas as pd
 import torch
@@ -9,9 +10,10 @@ from torch.utils.data import Dataset, DataLoader, random_split, default_collate,
 from torchvision import transforms as t
 from torchvision.io import read_image
 from transformers import CLIPProcessor
+
 from transformations import BackTranslation
 from utils import DEFAULT_TRANSFORMS, IMAGE_DEFAULT_C, IMAGE_DEFAULT_H, IMAGE_DEFAULT_W, TRAIN_SPLIT_PERCENTAGE, \
-    VAL_SPLIT_PERCENTAGE, RAW_FIELD_CAPTION, ListWrapper
+    VAL_SPLIT_PERCENTAGE, RAW_FIELD_CAPTION, ListWrapper, get_splits
 
 
 class CaptioningDataset(Dataset):
@@ -112,10 +114,18 @@ class CaptioningDataset(Dataset):
 
 
 class CaptioningDataModule(l.LightningDataModule):
-    def __init__(self, annotations_files: str | List[str], img_dirs: str | List[str], img_transform=None,
-                 target_transform=None, train_split_percentage: float = TRAIN_SPLIT_PERCENTAGE,
-                 val_split_percentage: float = VAL_SPLIT_PERCENTAGE, batch_size: int = 512, num_workers: int = 0,
-                 shuffle: bool = False, processor=None):
+    def __init__(self,
+                 annotations_files: Union[str, List[str]],
+                 img_dirs: Union[str, List[str]],
+                 additional_test_annotation_files: Optional[List[Optional[str]]] = None,
+                 img_transform=None,
+                 target_transform=None,
+                 train_split_percentage: float = TRAIN_SPLIT_PERCENTAGE,
+                 val_split_percentage: float = VAL_SPLIT_PERCENTAGE,
+                 batch_size: int = 512,
+                 num_workers: int = 0,
+                 shuffle: bool = False,
+                 processor=None):
         """
             Args:
                 annotations_files (List[string]): Path or Paths to the file containing the annotations.
@@ -145,7 +155,16 @@ class CaptioningDataModule(l.LightningDataModule):
             raise Exception(f"The number of annotations_files must match the number of img_dirs."
                             f"annotations_files count: {len(annotations_files)} - img_dirs count: {len(img_dirs)}")
 
+        if additional_test_annotation_files is None:
+            additional_test_annotation_files = [None for _ in range(0, len(annotations_files))]
+        elif len(additional_test_annotation_files) > len(annotations_files):
+            additional_test_annotation_files = additional_test_annotation_files[0:len(annotations_files)]
+        elif len(additional_test_annotation_files) < len(annotations_files):
+            diff = len(annotations_files) - len(additional_test_annotation_files)
+            additional_test_annotation_files = additional_test_annotation_files + [None for _ in range(0, diff)]
+
         self._annotations_files = annotations_files
+        self._additional_test_annotation_files = additional_test_annotation_files
         self._img_dirs = img_dirs
         self._img_transform = img_transform
         self._target_transform = target_transform
@@ -169,6 +188,7 @@ class CaptioningDataModule(l.LightningDataModule):
         dataset = None
 
         if isinstance(self._annotations_files, list):
+            '''
             all_datasets = []
             for i in range(len(self._annotations_files)):
                 captioning_dataset = CaptioningDataset(annotations_file=self._annotations_files[i],
@@ -177,17 +197,68 @@ class CaptioningDataModule(l.LightningDataModule):
                 all_datasets.append(captioning_dataset)
 
             dataset = ConcatDataset(all_datasets)
+            '''
+            train_sets = []
+            val_sets = []
+            test_sets = []
+            for i in range(len(self._annotations_files)):
+                # Create the i-th dataset
+                captioning_dataset = CaptioningDataset(annotations_file=self._annotations_files[i],
+                                                       img_dir=self._img_dirs[i],
+                                                       img_transform=self._img_transform,
+                                                       target_transform=self._target_transform,
+                                                       train=train)
+
+                # If the i-th test set is defined externally
+                if self._additional_test_annotation_files[i] is not None:
+
+                    # Create the test set
+                    test_set = CaptioningDataset(annotations_file=self._additional_test_annotation_files[i],
+                                                 img_dir=self._img_dirs[i],
+                                                 img_transform=self._img_transform,
+                                                 target_transform=self._target_transform,
+                                                 train=False)
+
+                    # Split only train and validation
+                    train_split_percentage = 100.0 - self._val_split_percentage
+                    train_split, val_split, _ = get_splits(n_instances=len(captioning_dataset),
+                                                           train_split_percentage=train_split_percentage,
+                                                           val_split_percentage=self._val_split_percentage)
+                    train_set, val_set = random_split(captioning_dataset, [train_split, val_split])
+
+                # Otherwise split in train/test/validation
+                else:
+                    train_split, val_split, test_split = get_splits(n_instances=len(captioning_dataset),
+                                                                    train_split_percentage=self._train_split_percentage,
+                                                                    val_split_percentage=self._val_split_percentage)
+                    train_set, val_set, test_set = random_split(captioning_dataset,
+                                                                [train_split, val_split, test_split])
+
+                # Add the train/validation/test set to the corresponding list
+                train_sets.append(train_set)
+                val_sets.append(val_set)
+                test_sets.append(test_set)
+
+            # Concat all the created datasets
+            self._train_set = ConcatDataset(train_sets)
+            self._val_set = ConcatDataset(val_sets)
+            self._test_set = ConcatDataset(test_sets)
         else:
             dataset = CaptioningDataset(annotations_file=self._annotations_files,
-                                        img_dir=self._img_dirs, img_transform=self._img_transform,
-                                        target_transform=self._target_transform, train=train)
+                                        img_dir=self._img_dirs,
+                                        img_transform=self._img_transform,
+                                        target_transform=self._target_transform,
+                                        train=train)
 
-        train_split = int(len(dataset) * self._train_split_percentage / 100)
-        remaining_split = len(dataset) - train_split
-        val_split = remaining_split - int(len(dataset) * self._val_split_percentage / 100)
-        test_split = remaining_split - val_split
-
-        self._train_set, self._val_set, self._test_set = random_split(dataset, [train_split, val_split, test_split])
+            '''train_split = int(len(dataset) * self._train_split_percentage / 100)
+            remaining_split = len(dataset) - train_split
+            val_split = remaining_split - int(len(dataset) * self._val_split_percentage / 100)
+            test_split = remaining_split - val_split'''
+            # Randomly split train/val/test
+            train_split, val_split, test_split = get_splits(n_instances=len(dataset),
+                                                            train_split_percentage=self._train_split_percentage,
+                                                            val_split_percentage=self._val_split_percentage)
+            self._train_set, self._val_set, self._test_set = random_split(dataset, [train_split, val_split, test_split])
 
     def train_dataloader(self):
         return DataLoader(self._train_set, batch_size=self._batch_size, num_workers=self._num_workers,
