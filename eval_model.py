@@ -64,16 +64,16 @@ def predict_image(img_file, model, processor, eval_sentences, classes_names, k, 
     else:
         eval_image = read_image(img_file)
 
-    inputs = processor(images=eval_image, text=eval_sentences, truncation=True, padding="max_length", return_tensors="pt")
+    inputs = processor(images=eval_image, text=eval_sentences, truncation=True, padding="max_length",
+                       return_tensors="pt")
 
     # move inputs to current device
-    # for key in inputs.keys():
-    #    if isinstance(inputs[key], torch.Tensor):
-    #        inputs[key] = inputs[key].to(model.device)
+    for key in inputs.keys():
+        if isinstance(inputs[key], torch.Tensor):
+            inputs[key] = inputs[key].to(model.device)
 
     outputs = model(inputs, return_loss=False)
-    probs = outputs.logits_per_image.softmax(dim=1).detach().numpy()
-#    probs = probs.to('cpu').detach()
+    probs = outputs.logits_per_image.softmax(dim=1).cpu().detach().numpy()
     probs_np = np.asarray(probs)[0]
     probs_npi = np.argsort(-probs_np)
     predictions = [(classes_names[i], probs_np[i]) for i in probs_npi[0:k]]
@@ -128,7 +128,7 @@ def main(args):
     print("Starting evaluation...")
     print(f"Loading checkpoint: {args.model_pth} and processor: {args.processor}")
 
-    model = CLIPWrapper.load_from_checkpoint(args.model_pth).to('cpu')
+    model = CLIPWrapper.load_from_checkpoint(args.model_pth)
     processor = CLIPProcessor.from_pretrained(args.processor)
 
     model_scores_file = os.path.join(args.scores_dir, get_model_basename(args.model_pth)) + ".tsv"
