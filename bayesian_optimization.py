@@ -1,8 +1,8 @@
 import os
-from bayes_opt import BayesianOptimization
 from argparse import ArgumentParser
 
 import yaml
+from bayes_opt import BayesianOptimization
 
 args = None
 script_to_run = None
@@ -66,7 +66,7 @@ def evaluate_model(lr, weight_decay, use_warmup):
     print(f"running with config {config_file} and parameters: --model.lr {parameters['lr'][round(lr)]} "
           f"--model.weight_decay {parameters['weight_decay'][round(weight_decay)]}"
           f" --model.use_warmup {use_warmup}")
-    os.system(f"python3 {script_to_run} fit --config {config_file} --model.lr {parameters['lr'][round(lr)]} "
+    os.system(f"python {script_to_run} fit --config {config_file} --model.lr {parameters['lr'][round(lr)]} "
               f"--model.weight_decay {parameters['weight_decay'][round(weight_decay)]}"
               f" --model.use_warmup {use_warmup} --trainer.default_root_dir {args.default_root_dir}")
     # navigate to the trainer's default root dir, get the latest version, find the checkpoint and pick the best val_loss
@@ -120,7 +120,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--default_root_dir", type=str, default=os.getcwd())
     parser.add_argument("--grid_file", type=str, default="grid.yaml")
-    parser.add_argument("--n_iter", type=int, default=5)
+    parser.add_argument("--n_iter", type=int, default=10)
 
     args = parser.parse_args()
 
