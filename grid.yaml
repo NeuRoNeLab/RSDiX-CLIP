@@ -3,5 +3,5 @@ config_file: config.yaml
 attr_keys:
   model:
     lr: 2.2908676527677735e-07,2.2908676527677735e-08,1e-5,2e-5,5e-5,1e-4,3e-4
-    use_warmup: linear,cosine
+    use_warmup: 0,1 # 0 warmup, 1 linear
     weight_decay: 0.1,0.2,0.01
