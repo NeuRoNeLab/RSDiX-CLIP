@@ -13,7 +13,7 @@ from transformers import CLIPProcessor
 
 from transformations import BackTranslation, GPT2Tokenizer
 from utils import DEFAULT_TRANSFORMS, IMAGE_DEFAULT_C, IMAGE_DEFAULT_H, IMAGE_DEFAULT_W, TRAIN_SPLIT_PERCENTAGE, \
-    VAL_SPLIT_PERCENTAGE, RAW_FIELD_CAPTION, ListWrapper, get_splits
+    VAL_SPLIT_PERCENTAGE, RAW_CAPTION_FIELD, ListWrapper, get_splits, GPT2_CAPTION_TOKENS_FIELD
 
 
 class CaptioningDataset(Dataset):
@@ -259,27 +259,24 @@ class CaptioningDataModule(l.LightningDataModule):
 
     def train_dataloader(self):
         return DataLoader(self._train_set, batch_size=self._batch_size, num_workers=self._num_workers,
-                          drop_last=True, shuffle=self._shuffle,
-                          collate_fn=self.gpt2_tokenizer_collate_fn if self._use_gpt2_tokenizer else self.collate_fn)
+                          drop_last=True, shuffle=self._shuffle, collate_fn=self.collate_fn)
 
     def val_dataloader(self):
         return DataLoader(self._val_set, batch_size=self._batch_size, num_workers=self._num_workers,
-                          drop_last=True,
-                          collate_fn=self.gpt2_tokenizer_collate_fn if self._use_gpt2_tokenizer else self.collate_fn)
+                          drop_last=True, collate_fn=self.collate_fn)
 
     def test_dataloader(self):
         return DataLoader(self._test_set, batch_size=self._batch_size, num_workers=self._num_workers,
-                          drop_last=True,
-                          collate_fn=self.gpt2_tokenizer_collate_fn if self._use_gpt2_tokenizer else self.collate_fn)
+                          drop_last=True, collate_fn=self.collate_fn)
 
     def collate_fn(self, examples):
         image, caption = default_collate(examples)
         encodings = self._processor(images=image, text=list(caption), truncation=True, padding="max_length",
                                     max_length=77, return_tensors="pt")
-        encodings[RAW_FIELD_CAPTION] = ListWrapper(list(caption))
-        return encodings
 
-    def gpt2_tokenizer_collate_fn(self, examples):
-        image, caption = default_collate(examples)
-        self._gpt2_tokenizer(captions=caption)
+        if self._use_gpt2_tokenizer:
+            encodings[GPT2_CAPTION_TOKENS_FIELD] = self._gpt2_tokenizer(captions=caption)
+
+        encodings[RAW_CAPTION_FIELD] = ListWrapper(list(caption))
+        return encodings
 
