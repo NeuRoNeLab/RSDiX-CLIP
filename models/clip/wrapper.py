@@ -24,13 +24,23 @@ class CLIPWrapper(l.LightningModule):
 
     _st_model = SentenceTransformer("all-MiniLM-L6-v2")
 
-    def __init__(self, model: str = "openai/clip-vit-base-patch32",
-                 lr: Optional[float] = None, alpha: float = 0.5, ema_decay: float = 0.999,
-                 weight_decay: float = 0.1, start_factor: float = 0.3333333333333333,
-                 end_factor: float = 1.0, total_iters: int = 5, use_warmup: str = "cosine",
-                 warmup_steps: int = 0, eps: float = 1e-08,
+    def __init__(self,
+                 model: str = "openai/clip-vit-base-patch32",
+                 lr: Optional[float] = None,
+                 alpha: float = 0.5,
+                 ema_decay: float = 0.999,
+                 weight_decay: float = 0.1,
+                 start_factor: float = 0.3333333333333333,
+                 end_factor: float = 1.0,
+                 total_iters: int = 5,
+                 use_warmup: str = "cosine",
+                 warmup_steps: int = 0,
+                 eps: float = 1e-08,
                  betas: tuple[float, float] = BETAS,
-                 sinkhorn_lambda: float = 0.1, sinkhorn_iter: int = 4, ii_coeff: float = 1.0, tt_coeff: float = 1.0,
+                 sinkhorn_lambda: float = 0.1,
+                 sinkhorn_iter: int = 4,
+                 ii_coeff: float = 1.0,
+                 tt_coeff: float = 1.0,
                  remove_diag: bool = False):
         super().__init__()
 
