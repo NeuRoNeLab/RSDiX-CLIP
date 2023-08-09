@@ -11,14 +11,19 @@ from torchvision import transforms as t
 from torchvision.io import read_image
 from transformers import CLIPProcessor
 
-from transformations import BackTranslation
+from transformations import BackTranslation, GPT2Tokenizer
 from utils import DEFAULT_TRANSFORMS, IMAGE_DEFAULT_C, IMAGE_DEFAULT_H, IMAGE_DEFAULT_W, TRAIN_SPLIT_PERCENTAGE, \
     VAL_SPLIT_PERCENTAGE, RAW_FIELD_CAPTION, ListWrapper, get_splits
 
 
 class CaptioningDataset(Dataset):
-    def __init__(self, annotations_file: str, img_dir: str, img_transform=None, target_transform=None,
-                 train: bool = False, dataset_name: str = "RSICD"):
+    def __init__(self,
+                 annotations_file: str,
+                 img_dir: str,
+                 img_transform=None,
+                 target_transform=None,
+                 train: bool = False,
+                 dataset_name: str = "RSICD"):
         """
             Args:
                 annotations_file (string): Path to the file containing the annotations.
@@ -125,7 +130,8 @@ class CaptioningDataModule(l.LightningDataModule):
                  batch_size: int = 512,
                  num_workers: int = 0,
                  shuffle: bool = False,
-                 processor=None):
+                 processor: str = None,
+                 use_gpt2_tokenizer: bool = False):
         """
             Args:
                 annotations_files (List[string]): Path or Paths to the file containing the annotations.
@@ -177,7 +183,12 @@ class CaptioningDataModule(l.LightningDataModule):
         if processor is None:
             self._processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
         else:
-            self._processor = processor
+            self._processor = CLIPProcessor.from_pretrained(processor)
+
+        self._use_gpt2_tokenizer = use_gpt2_tokenizer
+
+        if self._use_gpt2_tokenizer:
+            self._gpt2_tokenizer = GPT2Tokenizer()
 
         self._train_set = None
         self._val_set = None
@@ -185,19 +196,8 @@ class CaptioningDataModule(l.LightningDataModule):
 
     def setup(self, stage: str):
         train = stage == 'fit'
-        dataset = None
 
         if isinstance(self._annotations_files, list):
-            '''
-            all_datasets = []
-            for i in range(len(self._annotations_files)):
-                captioning_dataset = CaptioningDataset(annotations_file=self._annotations_files[i],
-                                                       img_dir=self._img_dirs[i], img_transform=self._img_transform,
-                                                       target_transform=self._target_transform, train=train)
-                all_datasets.append(captioning_dataset)
-
-            dataset = ConcatDataset(all_datasets)
-            '''
             train_sets = []
             val_sets = []
             test_sets = []
@@ -250,27 +250,27 @@ class CaptioningDataModule(l.LightningDataModule):
                                         target_transform=self._target_transform,
                                         train=train)
 
-            '''train_split = int(len(dataset) * self._train_split_percentage / 100)
-            remaining_split = len(dataset) - train_split
-            val_split = remaining_split - int(len(dataset) * self._val_split_percentage / 100)
-            test_split = remaining_split - val_split'''
             # Randomly split train/val/test
             train_split, val_split, test_split = get_splits(n_instances=len(dataset),
                                                             train_split_percentage=self._train_split_percentage,
                                                             val_split_percentage=self._val_split_percentage)
-            self._train_set, self._val_set, self._test_set = random_split(dataset, [train_split, val_split, test_split])
+            self._train_set, self._val_set, self._test_set = random_split(dataset,
+                                                                          [train_split, val_split, test_split])
 
     def train_dataloader(self):
         return DataLoader(self._train_set, batch_size=self._batch_size, num_workers=self._num_workers,
-                          drop_last=True, shuffle=self._shuffle, collate_fn=self.collate_fn)
+                          drop_last=True, shuffle=self._shuffle,
+                          collate_fn=self.gpt2_tokenizer_collate_fn if self._use_gpt2_tokenizer else self.collate_fn)
 
     def val_dataloader(self):
         return DataLoader(self._val_set, batch_size=self._batch_size, num_workers=self._num_workers,
-                          drop_last=True, collate_fn=self.collate_fn)
+                          drop_last=True,
+                          collate_fn=self.gpt2_tokenizer_collate_fn if self._use_gpt2_tokenizer else self.collate_fn)
 
     def test_dataloader(self):
         return DataLoader(self._test_set, batch_size=self._batch_size, num_workers=self._num_workers,
-                          drop_last=True, collate_fn=self.collate_fn)
+                          drop_last=True,
+                          collate_fn=self.gpt2_tokenizer_collate_fn if self._use_gpt2_tokenizer else self.collate_fn)
 
     def collate_fn(self, examples):
         image, caption = default_collate(examples)
@@ -278,3 +278,8 @@ class CaptioningDataModule(l.LightningDataModule):
                                     max_length=77, return_tensors="pt")
         encodings[RAW_FIELD_CAPTION] = ListWrapper(list(caption))
         return encodings
+
+    def gpt2_tokenizer_collate_fn(self, examples):
+        image, caption = default_collate(examples)
+        self._gpt2_tokenizer(captions=caption)
+
