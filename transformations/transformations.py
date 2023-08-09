@@ -1,3 +1,5 @@
+from typing import Final
+
 import torch
 import random
 
@@ -5,8 +7,6 @@ import numpy as np
 
 from torchvision.transforms import functional as f
 from transformers import MarianTokenizer, MarianMTModel, GPT2Tokenizer
-
-from utils import PREFIX_LENGTH
 
 
 def calculate_probability(n: int, p: float):
@@ -97,6 +97,9 @@ class BackTranslation:
             return sample
 
 
+PREFIX_LENGTH: Final[int] = 40
+
+
 class GPT2Tokenizer:
 
     def __init__(self, prefix_length: int = PREFIX_LENGTH,
@@ -105,24 +108,16 @@ class GPT2Tokenizer:
         self._tokenizer = GPT2Tokenizer.from_pretrained(gpt2_type)
         self._prefix_length = prefix_length
         self._normalize_prefix = normalize_prefix
-        self._caption_tokens = []
-        self._max_seq_len = 0
 
     def _pad_tokens(self):
         pass
 
     def __call__(self, captions: str):
-        max_seq_len = 0
-        all_len = []
+        caption_tokens = []
         for c in captions:
-            self._caption_tokens.append([torch.tensor(self._tokenizer.encode(c), dtype=torch.int64)])
-            seq_lenghts = [ct.shape[0] for ct in self._caption_tokens[-1]]
-            all_len.extend(seq_lenghts)
-            max_seq_len = max(max_seq_len, *seq_lenghts)
-            max_seq_len = max(max_seq_len, *seq_lenghts)
+            caption_tokens.append([torch.tensor(self._tokenizer.encode(c), dtype=torch.int64)])
 
-        all_len = torch.tensor(all_len).float()
-        self.max_seq_len = min(int(all_len.mean() + all_len.std() * 10), max_seq_len)
+        return caption_tokens
 
 
         
