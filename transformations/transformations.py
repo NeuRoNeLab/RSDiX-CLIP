@@ -1,10 +1,9 @@
+import random
+from functools import reduce
 from typing import Final
 
-import torch
-import random
-
 import numpy as np
-
+import torch
 from torchvision.transforms import functional as f
 from transformers import MarianTokenizer, MarianMTModel, GPT2Tokenizer
 
@@ -48,6 +47,12 @@ class RandomSharpness(torch.nn.Module):
 
 TGT_LANGS = ['fr', 'wa', 'frp', 'oc', 'ca', 'rm', 'lld', 'fur', 'lij', 'lmo', 'es', 'it', 'pt', 'gl', 'lad', 'an',
              'mwl', 'co', 'nap', 'scn', 'vec', 'sc', 'ro', 'la']
+MAX_MODEL_LENGTH = 77
+TOKENS_RANGE = 3
+
+
+def count_words(caption: str):
+    return reduce(lambda x, y: x + 1 if y == ' ' else x, caption, 1)
 
 
 class BackTranslation:
@@ -63,10 +68,11 @@ class BackTranslation:
                (translation).
                 p (float):  the probability with which to apply back translation.
         """
+        self._device = "cuda" if torch.cuda.is_available() else "cpu"
         self._p = p
-        self._src_translator = MarianMTModel.from_pretrained(src_translator)
+        self._src_translator = MarianMTModel.from_pretrained(src_translator).to(self._device)
         self._src_tokenizer = MarianTokenizer.from_pretrained(src_translator)
-        self._tgt_translator = MarianMTModel.from_pretrained(tgt_translator)
+        self._tgt_translator = MarianMTModel.from_pretrained(tgt_translator).to(self._device)
         self._tgt_tokenizer = MarianTokenizer.from_pretrained(tgt_translator)
 
     @property
@@ -74,11 +80,14 @@ class BackTranslation:
         return self._p
 
     def _translate(self, sample, back: bool = False):
-        translated = self._src_translator.generate(**self._src_tokenizer(sample, return_tensors="pt", padding=True),
-                                                   max_new_tokens=512) \
-            if back is not True else \
-            self._tgt_translator.generate(**self._tgt_tokenizer(sample, return_tensors="pt", padding=True),
-                                          max_new_tokens=512)
+        tokens = self._src_tokenizer(sample, return_tensors="pt", padding=True) if back is not True else \
+            self._tgt_tokenizer(sample, return_tensors="pt", padding=True)
+        tokens = tokens.to(self._device)
+
+        translated = self._src_translator.generate(**tokens, max_new_tokens=MAX_MODEL_LENGTH) if back is not True else \
+            self._tgt_translator.generate(**tokens, max_new_tokens=MAX_MODEL_LENGTH)
+
+        translated = translated.to("cpu")
 
         # translated text
         return [self._src_tokenizer.decode(t, skip_special_tokens=True) for t in translated][0] \
@@ -91,8 +100,14 @@ class BackTranslation:
         if bit == 1:
             # insert >>2 character language code<< at the beginning of the text to define the target language
             tgt_lang = random.choice(TGT_LANGS)
+            og_sample_len = count_words(sample)
             sample = f">>{tgt_lang}<< " + sample
-            return self._translate(self._translate(sample), back=True)
+            translated_sample = self._translate(self._translate(sample), back=True)
+
+            # if the translated sample contains more words (tokens) than the specified threshold, return the original
+            # sample
+            threshold = og_sample_len * TOKENS_RANGE
+            return translated_sample if count_words(translated_sample) <= threshold else sample
         else:
             return sample
 
@@ -109,16 +124,9 @@ class GPT2Tokenizer:
         self._prefix_length = prefix_length
         self._normalize_prefix = normalize_prefix
 
-    def _pad_tokens(self):
-        pass
-
     def __call__(self, captions: str):
         caption_tokens = []
         for c in captions:
             caption_tokens.append([torch.tensor(self._tokenizer.encode(c), dtype=torch.int64)])
 
         return caption_tokens
-
-
-        
-
