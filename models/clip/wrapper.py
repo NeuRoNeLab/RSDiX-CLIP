@@ -12,7 +12,7 @@ from cosine_annealing_warmup import CosineAnnealingWarmupRestarts
 from torch.optim.lr_scheduler import LinearLR
 
 from utils import CONFIG_DIR, VIT_CONFIG_FILE, IMAGE_FIELD, CAPTION_FIELD, BETAS, \
-    RAW_FIELD_CAPTION
+    RAW_CAPTION_FIELD
 from .model_utils import compute_mse, compute_accuracy, compute_teacher_targets
 from .ema import ExponentialMovingAverage
 
@@ -24,13 +24,23 @@ class CLIPWrapper(l.LightningModule):
 
     _st_model = SentenceTransformer("all-MiniLM-L6-v2")
 
-    def __init__(self, model: str = "openai/clip-vit-base-patch32",
-                 lr: Optional[float] = None, alpha: float = 0.5, ema_decay: float = 0.999,
-                 weight_decay: float = 0.1, start_factor: float = 0.3333333333333333,
-                 end_factor: float = 1.0, total_iters: int = 5, use_warmup: str = "cosine",
-                 warmup_steps: int = 0, eps: float = 1e-08,
+    def __init__(self,
+                 model: str = "openai/clip-vit-base-patch32",
+                 lr: Optional[float] = None,
+                 alpha: float = 0.5,
+                 ema_decay: float = 0.999,
+                 weight_decay: float = 0.1,
+                 start_factor: float = 0.3333333333333333,
+                 end_factor: float = 1.0,
+                 total_iters: int = 5,
+                 use_warmup: str = "cosine",
+                 warmup_steps: int = 0,
+                 eps: float = 1e-08,
                  betas: tuple[float, float] = BETAS,
-                 sinkhorn_lambda: float = 0.1, sinkhorn_iter: int = 4, ii_coeff: float = 1.0, tt_coeff: float = 1.0,
+                 sinkhorn_lambda: float = 0.1,
+                 sinkhorn_iter: int = 4,
+                 ii_coeff: float = 1.0,
+                 tt_coeff: float = 1.0,
                  remove_diag: bool = False):
         super().__init__()
 
@@ -92,7 +102,7 @@ class CLIPWrapper(l.LightningModule):
         return images_embeds, text_embeds
 
     def training_step(self, batch, batch_idx) -> torch.Tensor:
-        images, text, raw_text = batch[IMAGE_FIELD], batch[CAPTION_FIELD], batch.pop(RAW_FIELD_CAPTION)
+        images, text, raw_text = batch[IMAGE_FIELD], batch[CAPTION_FIELD], batch.pop(RAW_CAPTION_FIELD)
 
         # Update the teacher model
         self.update_teacher()
@@ -138,7 +148,7 @@ class CLIPWrapper(l.LightningModule):
         return loss
 
     def validation_step(self, batch, batch_idx) -> torch.Tensor:
-        images, text, raw_text = batch[IMAGE_FIELD], batch[CAPTION_FIELD], batch.pop(RAW_FIELD_CAPTION)
+        images, text, raw_text = batch[IMAGE_FIELD], batch[CAPTION_FIELD], batch.pop(RAW_CAPTION_FIELD)
         images_embeds, text_embeds = self.get_embeddings(images=images, text=text)
 
         outputs = self.forward(batch)

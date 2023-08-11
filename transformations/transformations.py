@@ -1,10 +1,10 @@
-import torch
 import random
+from typing import Final
 
 import numpy as np
-
+import torch
 from torchvision.transforms import functional as f
-from transformers import MarianTokenizer, MarianMTModel
+from transformers import MarianTokenizer, MarianMTModel, GPT2Tokenizer
 
 
 def calculate_probability(n: int, p: float):
@@ -46,6 +46,8 @@ class RandomSharpness(torch.nn.Module):
 
 TGT_LANGS = ['fr', 'wa', 'frp', 'oc', 'ca', 'rm', 'lld', 'fur', 'lij', 'lmo', 'es', 'it', 'pt', 'gl', 'lad', 'an',
              'mwl', 'co', 'nap', 'scn', 'vec', 'sc', 'ro', 'la']
+MAX_MODEL_LENGTH = 77
+TOKENS_RANGE = 3
 
 
 class BackTranslation:
@@ -61,10 +63,11 @@ class BackTranslation:
                (translation).
                 p (float):  the probability with which to apply back translation.
         """
+        self._device = "cuda" if torch.cuda.is_available() else "cpu"
         self._p = p
-        self._src_translator = MarianMTModel.from_pretrained(src_translator)
+        self._src_translator = MarianMTModel.from_pretrained(src_translator).to(self._device)
         self._src_tokenizer = MarianTokenizer.from_pretrained(src_translator)
-        self._tgt_translator = MarianMTModel.from_pretrained(tgt_translator)
+        self._tgt_translator = MarianMTModel.from_pretrained(tgt_translator).to(self._device)
         self._tgt_tokenizer = MarianTokenizer.from_pretrained(tgt_translator)
 
     @property
@@ -72,11 +75,17 @@ class BackTranslation:
         return self._p
 
     def _translate(self, sample, back: bool = False):
-        translated = self._src_translator.generate(**self._src_tokenizer(sample, return_tensors="pt", padding=True),
-                                                   max_new_tokens=512) \
-            if back is not True else \
-            self._tgt_translator.generate(**self._tgt_tokenizer(sample, return_tensors="pt", padding=True),
-                                          max_new_tokens=512)
+        tokens = self._src_tokenizer(sample, return_tensors="pt", padding=True) if back is not True else \
+            self._tgt_tokenizer(sample, return_tensors="pt", padding=True)
+        tokens = tokens.to(self._device)
+
+        translated = self._src_translator.generate(**tokens, max_new_tokens=MAX_MODEL_LENGTH) if back is not True else \
+            self._tgt_translator.generate(**tokens, max_new_tokens=MAX_MODEL_LENGTH)
+
+        # if the translated sample contains more tokens than the specified threshold, return the original
+        # sample
+        translated = translated if len(translated) <= (len(tokens) * TOKENS_RANGE) else tokens
+        translated = translated.to("cpu")
 
         # translated text
         return [self._src_tokenizer.decode(t, skip_special_tokens=True) for t in translated][0] \
@@ -93,3 +102,38 @@ class BackTranslation:
             return self._translate(self._translate(sample), back=True)
         else:
             return sample
+
+
+PREFIX_LENGTH: Final[int] = 40
+GPT_MAX_LENGTH = 100
+
+
+class GPT2Tokenization:
+
+    def __init__(self, prefix_length: int = PREFIX_LENGTH,
+                 gpt2_type: str = "gpt2",
+                 pad_token: str = None,
+                 normalize_prefix: bool = False):
+        self._tokenizer = GPT2Tokenizer.from_pretrained(gpt2_type)
+        self._prefix_length = prefix_length
+        self._normalize_prefix = normalize_prefix
+
+        if pad_token is not None:
+            self._tokenizer.pad_token = pad_token
+        elif self._tokenizer.pad_token is None:
+            self._tokenizer.pad_token = self._tokenizer.eos_token
+
+    def __call__(self, captions: str):
+        caption_tokens = []
+        for c in captions:
+            caption_tokens.append(torch.tensor(self._tokenizer.encode(c, padding='max_length',
+                                                                      max_length=GPT_MAX_LENGTH), dtype=torch.int64))
+
+        caption_tokens = torch.stack(caption_tokens)
+        mask = caption_tokens.ge(0)  # mask is zero where we out of sequence
+        caption_tokens[~mask] = 0
+        mask = mask.float()
+        # adding prefix mask
+        mask = torch.cat((torch.ones(caption_tokens.shape[0], self._prefix_length), mask), dim=1)
+
+        return caption_tokens, mask

@@ -1,7 +1,11 @@
+from typing import Final
+
 import torch
 from torchvision import transforms as t
 
 from transformations import RandomSharpness
+from aac_metrics.functional import bleu, rouge_l, meteor, sbert_sim
+
 
 IMAGE_DEFAULT_C = 3
 IMAGE_DEFAULT_W = 224
@@ -41,4 +45,21 @@ BATCH_SIZE = 512
 MINIBATCH_SIZE = 0
 IMAGE_FIELD = "pixel_values"
 CAPTION_FIELD = "input_ids"
-RAW_FIELD_CAPTION = "raw_captions"
+RAW_CAPTION_FIELD = "raw_captions"
+GPT2_CAPTION_TOKENS_FIELD = "gpt2_caption_tokens"
+GPT2_MASK_FIELD = "gpt2_mask"
+METEOR: Final[str] = "meteor"
+ROUGE_L: Final[str] = "rouge_l"
+SBERT_SIM: Final[str] = "sbert_sim"
+BLEU: Final[str] = "bleu_"
+MIN_BLEU: Final[int] = 1
+MAX_BLEU: Final[int] = 4
+ALLOWED_METRICS = [METEOR, SBERT_SIM, ROUGE_L, BLEU]
+METRICS = {
+    METEOR: meteor,
+    SBERT_SIM: sbert_sim,
+    ROUGE_L: rouge_l,
+    BLEU: bleu
+}
+GPT2_MAX_LENGTH = 3
+CLIP_MAX_LENGTH = 77
