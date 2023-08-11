@@ -185,31 +185,34 @@ def generate2(
     return generated_list[0]
 
 
-def generate_caption(img,
+def generate_caption(imgs,
                      model: ClipCaptionModel,
                      tokenizer: GPT2Tokenizer,
                      clip_encoder,
-                     use_beam_search: bool = True) -> str:
+                     use_beam_search: bool = True) -> List[str]:
     """
     Generates a caption for a given image using a pre-trained CLIPCap model.
 
     Args:
-        img (str or np.ndarray or PIL.Image.Image): The input image for caption generation.
+        imgs (torch.Tensor): The input images for caption generation.
         model (ClipCaptionModel): The image-captioning model for generating captions.
         tokenizer (GPT2Tokenizer): The tokenizer for encoding/decoding text.
         clip_encoder (torch.nn.Module): The CLIP model used for encoding images.
         use_beam_search (bool, optional): Whether to use beam search for text generation. Defaults to True.
 
     Returns:
-        str: The generated caption for the input image.
+        List[str]: The generated captions for the input images.
     """
 
+    generated_texts = []
     with torch.no_grad():
-        clip_prefix = clip_encoder.encode_image(img)
-        prefix_embed = model.clip_project(clip_prefix).reshape(1, 40, -1)
-    if use_beam_search:
-        generated_text = generate_beam(model, tokenizer, embed=prefix_embed)[0]
-    else:
-        generated_text = generate2(model, tokenizer, embed=prefix_embed)
+        imgs = imgs if len(imgs.shape) > 3 else imgs.unsqueeze(0)
+        clip_prefix = clip_encoder.encode_image(imgs)
+        for idx in range(clip_prefix.shape[0]):
+            prefix_embed = model.clip_project(clip_prefix[idx]).reshape(1, 40, -1)
+            if use_beam_search:
+                generated_texts.append(generate_beam(model, tokenizer, embed=prefix_embed)[0])
+            else:
+                generated_texts.append(generate2(model, tokenizer, embed=prefix_embed))
 
-    return generated_text
+    return generated_texts
