@@ -1,5 +1,4 @@
 import random
-from functools import reduce
 from typing import Final
 
 import numpy as np
@@ -49,10 +48,6 @@ TGT_LANGS = ['fr', 'wa', 'frp', 'oc', 'ca', 'rm', 'lld', 'fur', 'lij', 'lmo', 'e
              'mwl', 'co', 'nap', 'scn', 'vec', 'sc', 'ro', 'la']
 MAX_MODEL_LENGTH = 77
 TOKENS_RANGE = 3
-
-
-def count_words(caption: str):
-    return reduce(lambda x, y: x + 1 if y == ' ' else x, caption, 1)
 
 
 class BackTranslation:
