@@ -47,7 +47,7 @@ IMAGE_FIELD = "pixel_values"
 CAPTION_FIELD = "input_ids"
 RAW_CAPTION_FIELD = "raw_captions"
 GPT2_CAPTION_TOKENS_FIELD = "gpt2_caption_tokens"
-MASK_FIELD = "attention_mask"
+GPT2_MASK_FIELD = "gpt2_mask"
 METEOR: Final[str] = "meteor"
 ROUGE_L: Final[str] = "rouge_l"
 SBERT_SIM: Final[str] = "sbert_sim"
@@ -61,3 +61,5 @@ METRICS = {
     ROUGE_L: rouge_l,
     BLEU: bleu
 }
+GPT2_MAX_LENGTH = 3
+CLIP_MAX_LENGTH = 77
