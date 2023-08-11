@@ -87,6 +87,9 @@ class BackTranslation:
         translated = self._src_translator.generate(**tokens, max_new_tokens=MAX_MODEL_LENGTH) if back is not True else \
             self._tgt_translator.generate(**tokens, max_new_tokens=MAX_MODEL_LENGTH)
 
+        # if the translated sample contains more tokens than the specified threshold, return the original
+        # sample
+        translated = translated if len(translated) <= (len(tokens) * TOKENS_RANGE) else tokens
         translated = translated.to("cpu")
 
         # translated text
@@ -100,33 +103,42 @@ class BackTranslation:
         if bit == 1:
             # insert >>2 character language code<< at the beginning of the text to define the target language
             tgt_lang = random.choice(TGT_LANGS)
-            og_sample_len = count_words(sample)
             sample = f">>{tgt_lang}<< " + sample
-            translated_sample = self._translate(self._translate(sample), back=True)
-
-            # if the translated sample contains more words (tokens) than the specified threshold, return the original
-            # sample
-            threshold = og_sample_len * TOKENS_RANGE
-            return translated_sample if count_words(translated_sample) <= threshold else sample
+            return self._translate(self._translate(sample), back=True)
         else:
             return sample
 
 
 PREFIX_LENGTH: Final[int] = 40
+GPT_MAX_LENGTH = 100
 
 
-class GPT2Tokenizer:
+class GPT2Tokenization:
 
     def __init__(self, prefix_length: int = PREFIX_LENGTH,
                  gpt2_type: str = "gpt2",
+                 pad_token: str = None,
                  normalize_prefix: bool = False):
         self._tokenizer = GPT2Tokenizer.from_pretrained(gpt2_type)
         self._prefix_length = prefix_length
         self._normalize_prefix = normalize_prefix
 
+        if pad_token is not None:
+            self._tokenizer.pad_token = pad_token
+        elif self._tokenizer.pad_token is None:
+            self._tokenizer.pad_token = self._tokenizer.eos_token
+
     def __call__(self, captions: str):
         caption_tokens = []
         for c in captions:
-            caption_tokens.append([torch.tensor(self._tokenizer.encode(c), dtype=torch.int64)])
+            caption_tokens.append(torch.tensor(self._tokenizer.encode(c, padding='max_length',
+                                                                      max_length=GPT_MAX_LENGTH), dtype=torch.int64))
 
-        return caption_tokens
+        caption_tokens = torch.stack(caption_tokens)
+        mask = caption_tokens.ge(0)  # mask is zero where we out of sequence
+        caption_tokens[~mask] = 0
+        mask = mask.float()
+        # adding prefix mask
+        mask = torch.cat((torch.ones(caption_tokens.shape[0], self._prefix_length), mask), dim=1)
+
+        return caption_tokens, mask
