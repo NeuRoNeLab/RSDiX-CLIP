@@ -11,9 +11,10 @@ from torchvision import transforms as t
 from torchvision.io import read_image
 from transformers import CLIPProcessor
 
-from transformations import BackTranslation, GPT2Tokenizer
+from transformations import BackTranslation, GPT2Tokenization
 from utils import DEFAULT_TRANSFORMS, IMAGE_DEFAULT_C, IMAGE_DEFAULT_H, IMAGE_DEFAULT_W, TRAIN_SPLIT_PERCENTAGE, \
-    VAL_SPLIT_PERCENTAGE, RAW_CAPTION_FIELD, ListWrapper, get_splits, GPT2_CAPTION_TOKENS_FIELD
+    VAL_SPLIT_PERCENTAGE, RAW_CAPTION_FIELD, ListWrapper, get_splits, GPT2_CAPTION_TOKENS_FIELD, CLIP_MAX_LENGTH, \
+    BATCH_SIZE, GPT2_MASK_FIELD
 
 
 class CaptioningDataset(Dataset):
@@ -127,7 +128,7 @@ class CaptioningDataModule(l.LightningDataModule):
                  target_transform=None,
                  train_split_percentage: float = TRAIN_SPLIT_PERCENTAGE,
                  val_split_percentage: float = VAL_SPLIT_PERCENTAGE,
-                 batch_size: int = 512,
+                 batch_size: int = BATCH_SIZE,
                  num_workers: int = 0,
                  shuffle: bool = False,
                  processor: str = None,
@@ -188,7 +189,7 @@ class CaptioningDataModule(l.LightningDataModule):
         self._use_gpt2_tokenizer = use_gpt2_tokenizer
 
         if self._use_gpt2_tokenizer:
-            self._gpt2_tokenizer = GPT2Tokenizer()
+            self._gpt2_tokenizer = GPT2Tokenization()
 
         self._train_set = None
         self._val_set = None
@@ -272,10 +273,10 @@ class CaptioningDataModule(l.LightningDataModule):
     def collate_fn(self, examples):
         image, caption = default_collate(examples)
         encodings = self._processor(images=image, text=list(caption), truncation=True, padding="max_length",
-                                    max_length=77, return_tensors="pt")
+                                    max_length=CLIP_MAX_LENGTH, return_tensors="pt")
 
         if self._use_gpt2_tokenizer:
-            encodings[GPT2_CAPTION_TOKENS_FIELD] = self._gpt2_tokenizer(captions=caption)
+            encodings[GPT2_CAPTION_TOKENS_FIELD], encodings[GPT2_MASK_FIELD] = self._gpt2_tokenizer(captions=caption)
 
         encodings[RAW_CAPTION_FIELD] = ListWrapper(list(caption))
         return encodings
