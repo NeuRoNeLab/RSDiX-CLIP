@@ -1,6 +1,6 @@
 import os
 import random
-from typing import List, Union, Optional
+from typing import List, Union, Optional, Tuple
 
 import lightning as l
 import pandas as pd
@@ -18,6 +18,7 @@ from utils import DEFAULT_TRANSFORMS, IMAGE_DEFAULT_C, IMAGE_DEFAULT_H, IMAGE_DE
 
 
 class CaptioningDataset(Dataset):
+    """  Custom PyTorch Dataset for the remote sensing datasets like RSICD, UCMD, RSITMD. """
     def __init__(self,
                  annotations_file: str,
                  img_dir: str,
@@ -27,7 +28,6 @@ class CaptioningDataset(Dataset):
                  augment_text_data: bool = False,
                  dataset_name: str = "RSICD"):
         """
-            Custom PyTorch Dataset for the remote sensing datasets like RSICD, UCMD, RSITMD.
 
             Args:
                 annotations_file (string): Path to the file containing the annotations.
@@ -78,13 +78,23 @@ class CaptioningDataset(Dataset):
         return self._dataset_name
 
     def __len__(self) -> int:
+        """
+            Get the number of samples in the dataset.
+
+            Returns:
+                int: The number of samples in the dataset.
+        """
         return len(self._img_captions)
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx) -> Tuple[torch.Tensor, str]:
         """
-            Returns a tuple containing the image and the caption.
+            Get an item from the dataset.
+
             Arguments:
                 idx (int, Tensor): The index of the item to return.
+
+            Returns:
+                Tuple[torch.Tensor, str]: image, caption
         """
         if torch.is_tensor(idx):
             idx = idx.tolist()
