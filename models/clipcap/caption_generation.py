@@ -2,11 +2,11 @@ import re
 from typing import List
 from tqdm import trange
 import numpy as np
-import PIL.Image
 import torch
 import torch.nn.functional as nnf
 from transformers import GPT2Tokenizer
-from clicap import ClipCaptionModel
+from .clicap import ClipCaptionModel
+from .model_utils import remove_dots, remove_pad_token
 
 
 def generate_beam(model,
@@ -90,11 +90,9 @@ def generate_beam(model,
     order = scores.argsort(descending=True)
     output_texts = [output_texts[i] for i in order]
 
-    for i, text in enumerate(output_texts):
-        # Remove extra "." characters if needed
-        if re.match(r".*\.{4,}", text):
-            cleaned_txt = re.split(r"\.{4,}", text)[0]
-            output_texts[i] = cleaned_txt + "."
+    output_texts = remove_dots(output_texts)
+    output_texts = remove_pad_token(output_texts, tokenizer.pad_token)
+
     return output_texts
 
 
@@ -176,11 +174,8 @@ def generate2(
             output_text = tokenizer.decode(output_list)
             generated_list.append(output_text)
 
-    # Remove extra "." if needed
-    for i, text in enumerate(generated_list):
-        if re.match(r".*\.{4,}", text):
-            cleaned_txt = re.split(r"\.{4,}", text)[0]
-            generated_list[i] = cleaned_txt + "."
+    generated_list = remove_dots(generated_list)
+    generated_list = remove_pad_token(generated_list, tokenizer.pad_token)
 
     return generated_list[0]
 
