@@ -126,7 +126,7 @@ class GPT2Tokenization:
     def __call__(self, captions: str):
         caption_tokens = []
         for c in captions:
-            caption_tokens.append(torch.tensor(self._tokenizer.encode(c, padding='max_length',
+            caption_tokens.append(torch.tensor(self._tokenizer.encode(c, padding='max_length', truncation=True,
                                                                       max_length=GPT_MAX_LENGTH), dtype=torch.int64))
 
         caption_tokens = torch.stack(caption_tokens)
