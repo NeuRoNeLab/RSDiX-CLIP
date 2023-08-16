@@ -7,6 +7,11 @@
 
 /config.yaml
 /tuner_checkpoints
+/clipcap_config.yaml
+/eval_results
+/results.txt
+/$HOME
+/old_bak
 
 ### Python template
 # Byte-compiled / optimized / DLL files
