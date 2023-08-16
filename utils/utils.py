@@ -63,24 +63,23 @@ class ListWrapper(list):
         return self
 
 
-if __name__ == "__main__":
-    # separate rsicd test images from the others
+def separate_rsicd_test_images(annotations_file: str, test_output_file: str = "dataset_rsicd_test.json"):
     data = []
-    with open("./data/RSICD/dataset_rsicd.json") as json_file:
+    with open(annotations_file) as json_file:
         for line in json_file:
             data.append(json.loads(line))
     test_images = {"images": [], "dataset": data["dataset"]}
     new_data = {"images": [], "dataset": data["dataset"]}
 
-    for idx, image in enumerate(data["images"]):
-        if image["split"] == "test":
-            test_images["images"].append(image)
+    for idx, img in enumerate(data["images"]):
+        if img["split"] == "test":
+            test_images["images"].append(img)
         else:
-            new_data["images"].append(image)
+            new_data["images"].append(img)
 
     # overwrite existing dataset
-    with open("./data/RSICD/dataset_rsicd.json", "w") as json_file:
+    with open(annotations_file, "w") as json_file:
         json.dump(new_data, json_file)
 
-    with open("./data/RSICD/dataset_rsicd_test.json", "w") as json_file:
+    with open(test_output_file, "w") as json_file:
         json.dump(test_images, json_file)
