@@ -5,10 +5,11 @@ import torch
 from transformers import GPT2Tokenizer, get_linear_schedule_with_warmup
 
 from models.clip import CLIPWrapper
-from models.clipcap import ClipCaptionModel
+from models.clipcap import ClipCaptionModel, generate_caption
 from models.clipcap import MappingType
 from models.clipcap.model_utils import compute_loss
-from utils import IMAGE_FIELD, BETAS, GPT2_CAPTION_TOKENS_FIELD, ALLOWED_METRICS, RAW_CAPTION_FIELD, GPT2_MASK_FIELD
+from utils import IMAGE_FIELD, BETAS, GPT2_CAPTION_TOKENS_FIELD, ALLOWED_METRICS, RAW_CAPTION_FIELD, GPT2_MASK_FIELD, \
+    METEOR, METRICS, BLEU, MIN_BLEU, MAX_BLEU
 
 
 class CLIPCapWrapper(l.LightningModule):
@@ -45,9 +46,9 @@ class CLIPCapWrapper(l.LightningModule):
                  checkpoint_path: str = None,
                  metrics: Union[str, list] = ALLOWED_METRICS,
                  use_beam_search: bool = False,
-                 every_n_batches: int = 10,
                  tokenizer: str = "gpt2",
                  pad_token: str = None,
+                 every_n_batches: int = 10,
                  freeze_clip_encoder: bool = True):
         super().__init__()
 
@@ -82,6 +83,17 @@ class CLIPCapWrapper(l.LightningModule):
         self._every_n_batches = every_n_batches
         self._gpt2_tokenizer = GPT2Tokenizer.from_pretrained(tokenizer)
 
+        if BLEU in metrics:
+            for j in range(MIN_BLEU, MAX_BLEU + 1):
+                metrics.append(f"{BLEU}{j}")
+            metrics.remove(BLEU)
+
+        self._avg_metrics = {metric: 0.0 for metric in self._metrics}
+        self._avg_metrics_idx = 0
+
+        if METEOR in self._metrics:
+            self._no_meteor_count = 0
+
         if pad_token is not None:
             self._gpt2_tokenizer.pad_token = pad_token
         elif self._gpt2_tokenizer.pad_token is None:
@@ -94,6 +106,8 @@ class CLIPCapWrapper(l.LightningModule):
 
         # get CLIP images embeddings that will be used as the prefix by the captioning model
         prefix = self._clip_encoder.encode_image(images)
+        # normalize
+        prefix /= prefix.norm(p=2, dim=-1, keepdim=True)
         loss = compute_loss(self._clipcap, tokens, prefix, mask)
 
         self.log_dict({'loss': loss.item()}, prog_bar=True, on_step=True, on_epoch=True, logger=True,
@@ -103,15 +117,46 @@ class CLIPCapWrapper(l.LightningModule):
 
     def validation_step(self, batch, batch_idx) -> torch.Tensor:
         images, tokens, mask, raw_captions = (batch[IMAGE_FIELD], batch[GPT2_CAPTION_TOKENS_FIELD],
-                                              batch[GPT2_MASK_FIELD], [batch[RAW_CAPTION_FIELD]])
+                                              batch[GPT2_MASK_FIELD], batch[RAW_CAPTION_FIELD])
 
+        raw_captions = [[rc] for rc in raw_captions]
         # get CLIP images embeddings that will be used as the prefix by the captioning model
         prefix = self._clip_encoder.encode_image(images)
+        # normalize
+        prefix /= prefix.norm(p=2, dim=-1, keepdim=True)
         val_loss = compute_loss(self._clipcap, tokens, prefix, mask)
 
-        self.log_dict({'val_loss': val_loss.item()}, prog_bar=True, on_step=True,
-                      on_epoch=True, logger=True, enable_graph=True)
+        if self.trainer.sanity_checking is False and batch_idx > 0 and batch_idx % self._every_n_batches == 0:
+            preds = generate_caption(imgs=images,
+                                     clip_encoder=self._clip_encoder,
+                                     tokenizer=self._gpt2_tokenizer,
+                                     model=self._clipcap,
+                                     use_beam_search=self._use_beam_search)
+            for metric in self._metrics:
+                if metric == METEOR:
+                    try:
+                        value, _ = METRICS[metric](candidates=preds, mult_references=raw_captions)
+                        value = value[metric].item()
+                        self._avg_metrics[METEOR] = self._avg_metrics[metric] + 1 / (self._avg_metrics_idx + 1 - self._no_meteor_count) * (
+                                value - self._avg_metrics[metric])
+                    except ValueError as e:
+                        print(f"Meteor could not be computed due to error {e.with_traceback(None)} "
+                              f"on the couple: ({preds}, {raw_captions}). "
+                              f"Increasing the no_meteor_count to {self._no_meteor_count}")
+                        self._no_meteor_count += 1
+                else:
+                    if BLEU in metric:
+                        j = int(metric.split("_")[1])
+                        value, _ = METRICS[BLEU](candidates=preds, mult_references=raw_captions, n=j)
+                    else:
+                        value, _ = METRICS[metric](candidates=preds, mult_references=raw_captions)
+                    value = value[metric].item()
+                    self._avg_metrics[metric] = self._avg_metrics[metric] + 1 / (self._avg_metrics_idx + 1) * (value - self._avg_metrics[metric])
+                self._avg_metrics_idx = self._avg_metrics_idx + 1
 
+        self._avg_metrics['val_loss'] = val_loss.item()
+        self.log_dict(self._avg_metrics, prog_bar=True, on_step=True,
+                      on_epoch=True, logger=True, enable_graph=True)
         return val_loss
 
     def configure_optimizers(self) -> dict:
