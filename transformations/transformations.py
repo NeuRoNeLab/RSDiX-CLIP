@@ -105,7 +105,6 @@ class BackTranslation:
 
 
 PREFIX_LENGTH: Final[int] = 40
-GPT_MAX_LENGTH = 100
 
 
 class GPT2Tokenization:
@@ -124,16 +123,31 @@ class GPT2Tokenization:
             self._tokenizer.pad_token = self._tokenizer.eos_token
 
     def __call__(self, captions: str):
-        caption_tokens = []
+        tokens = []
+        max_seq_length = 0
         for c in captions:
-            caption_tokens.append(torch.tensor(self._tokenizer.encode(c, padding='max_length', truncation=True,
-                                                                      max_length=GPT_MAX_LENGTH), dtype=torch.int64))
+            tokens.append(torch.tensor(self._tokenizer.encode(c), dtype=torch.int64))
+            max_seq_length = max(tokens[-1].shape[0], max_seq_length)
 
-        caption_tokens = torch.stack(caption_tokens)
-        mask = caption_tokens.ge(0)  # mask is zero where we out of sequence
-        caption_tokens[~mask] = 0
-        mask = mask.float()
-        # adding prefix mask
-        mask = torch.cat((torch.ones(caption_tokens.shape[0], self._prefix_length), mask), dim=1)
+        # padding
+        masks = []
+        padded_tokens = []
+        for token in tokens:
+            padded_token = token
+            padding = max_seq_length - token.shape[0]
+            if padding > 0:
+                padded_token = torch.cat((token, torch.zeros(padding, dtype=torch.int64) - 1))
+            elif padding < 0:
+                padded_token = token[:max_seq_length]
+            mask = padded_token.ge(0)  # mask is zero where we out of sequence
+            padded_token[~mask] = 0
+            mask = mask.float()
+            mask = torch.cat((torch.ones(self._prefix_length), mask), dim=0)  # adding prefix mask
+            padded_tokens.append(padded_token)
+            masks.append(mask)
 
-        return caption_tokens, mask
+        # convert list to tensor
+        padded_tokens = torch.stack(padded_tokens)
+        masks = torch.stack(masks)
+
+        return padded_tokens, masks
