@@ -42,13 +42,12 @@ if __name__ == "__main__":
                         help="Trainer's default root dir. The directory where the tuner's checkpoints will be saved")
     parser.add_argument("--results_file", type=str, default="results.txt",
                         help="File where tuner's results will be saved")
-    parser.add_argument("--annotations_file", nargs='*',
+    parser.add_argument("--annotations_files", nargs='*',
                         default=["./data/dataset_rsicd.json", "./data/dataset_ucmd.json", "./data/dataset_rsitmd.json",
                                  "./data/dataset_nais.json"])
     parser.add_argument("--img_dirs", nargs='*',
-                        default=["./data/RSICD/RSICD_images", "./data/UCDM/UCDM_images", "./data/RSITMD/RSITMD_images",
+                        default=["./data/RSICD/RSICD_images", "./data/UCMD/UCMD_images", "./data/RSITMD/RSITMD_images",
                                  "./data/NAIS/NAIS_images"])
-    parser.add_argument("--num_workers", type=int, default=0)
     parser.add_argument("--num_workers", type=int, default=0)
     parser.add_argument("--batch_size", type=int, default=2)
     parser.add_argument("--finetune_clipcap", type=bool, default=False)
