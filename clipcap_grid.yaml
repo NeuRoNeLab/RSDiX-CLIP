@@ -3,6 +3,6 @@ config_file: clipcap_config.yaml
 attr_keys:
   model:
     clipcap_lr: 2e-5,1e-4
-    dropout: 0.0,0.8
+    dropout_transformer: 0.0,0.8
     dropout_gpt2: 0,0.8
     clipcap_weight_decay: 0,1e-05
