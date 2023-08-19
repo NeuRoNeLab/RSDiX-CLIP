@@ -37,7 +37,7 @@ DEFAULT_TRANSFORMS = t.RandomApply(torch.nn.ModuleList(
 TRAIN_SPLIT_PERCENTAGE = 80
 VAL_SPLIT_PERCENTAGE = 10
 
-CONFIG_DIR = "models/configs"
+CONFIG_DIR = "models/clip/configs"
 VIT_CONFIG_FILE = "ViT.yaml"
 
 BETAS = (0.9, 0.99)
@@ -61,5 +61,4 @@ METRICS = {
     ROUGE_L: rouge_l,
     BLEU: bleu
 }
-GPT2_MAX_LENGTH = 3
 CLIP_MAX_LENGTH = 77
