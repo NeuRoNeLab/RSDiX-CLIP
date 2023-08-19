@@ -10,7 +10,8 @@ from datasets import CaptioningDataset
 from models import CLIPCapWrapper
 from models.clipcap import generate_caption
 from utils import METEOR, SBERT_SIM, ROUGE_L, BLEU, MAX_BLEU, MIN_BLEU, \
-    IMAGE_FIELD, CLIP_MAX_LENGTH, get_model_basename
+    IMAGE_FIELD, CLIP_MAX_LENGTH
+from evaluation.utils import get_model_basename
 
 
 def eval_model(ds: CaptioningDataset, model: CLIPCapWrapper, preprocessor: CLIPProcessor, args) \
@@ -89,7 +90,8 @@ def main(args):
 
     model = CLIPCapWrapper.load_from_checkpoint(args.model_pth)
     preprocessor = CLIPProcessor.from_pretrained(args.processor)
-    ds = CaptioningDataset(annotations_file=args.annotations_file, img_dir=args.imgs_dir, train=False)
+    ds = CaptioningDataset(annotations_file=args.annotations_file, img_dir=args.imgs_dir, augment_image_data=False,
+                           augment_text_data=False)
 
     avg_metrics = eval_model(ds=ds, model=model, preprocessor=preprocessor, args=args)
     metrics_str = ""
