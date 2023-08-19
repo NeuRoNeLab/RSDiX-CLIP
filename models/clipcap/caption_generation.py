@@ -203,6 +203,8 @@ def generate_caption(imgs,
     with torch.no_grad():
         imgs = imgs if len(imgs.shape) > 3 else imgs.unsqueeze(0)
         clip_prefix = clip_encoder.encode_image(imgs)
+        # normalize
+        clip_prefix /= clip_prefix.norm(p=2, dim=-1, keepdim=True)
         for idx in range(clip_prefix.shape[0]):
             prefix_embed = model.clip_project(clip_prefix[idx]).reshape(1, 40, -1)
             if use_beam_search:
