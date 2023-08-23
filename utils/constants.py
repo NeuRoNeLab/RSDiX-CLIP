@@ -54,7 +54,7 @@ SBERT_SIM: Final[str] = "sbert_sim"
 BLEU: Final[str] = "bleu_"
 MIN_BLEU: Final[int] = 1
 MAX_BLEU: Final[int] = 4
-ALLOWED_METRICS = [METEOR, SBERT_SIM, ROUGE_L, BLEU]
+ALLOWED_METRICS = [METEOR, SBERT_SIM, ROUGE_L, BLEU, f'{BLEU}1', f'{BLEU}2', f'{BLEU}3', f'{BLEU}4']
 METRICS = {
     METEOR: meteor,
     SBERT_SIM: sbert_sim,
