@@ -108,7 +108,7 @@ def evaluate_clipcap_model(clipcap_lr, dropout_transformer, dropout_gpt2, clipca
 
 
 # Define the hyperparameter search space for Bayesian Optimization
-def hyper_search_space(grid_file="grid.yaml"):
+def hyper_search_space(grid_file: str):
     pbounds = {}
 
     with open(grid_file, "r") as f:
@@ -146,7 +146,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--default_root_dir", type=str, default=os.getcwd())
     parser.add_argument("--logs_dir", type=str, default="lightning_logs")
-    parser.add_argument("--grid_file", type=str, default="grid.yaml")
+    parser.add_argument("--grid_file", type=str, default="clip_grid.yaml")
     parser.add_argument("--n_iter", type=int, default=10)
     parser.add_argument("--n_init_points", type=int, default=5)
     parser.add_argument("--train_clipcap", type=bool, default=False)
