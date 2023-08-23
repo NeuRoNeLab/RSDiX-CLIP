@@ -10,6 +10,13 @@ config_file = None
 parameters = {}
 
 
+def get_parameter_value(key, value):
+    if len(parameters[key]) > 2:
+        value = parameters[key][round(value)]
+
+    return value
+
+
 def is_float(num):
     try:
         float(num)
@@ -63,11 +70,14 @@ def evaluate_clip_model(lr, weight_decay, use_warmup):
     else:
         use_warmup = "linear"
 
-    print(f"running with config {config_file} and parameters: --model.lr {parameters['lr'][round(lr)]} "
-          f"--model.weight_decay {parameters['weight_decay'][round(weight_decay)]}"
+    lr_value = get_parameter_value('lr', lr)
+    weight_decay_value = get_parameter_value('weight_decay', weight_decay)
+
+    print(f"running with config {config_file} and parameters: --model.lr {lr_value} "
+          f"--model.weight_decay {weight_decay_value}"
           f" --model.use_warmup {use_warmup}")
-    os.system(f"python {script_to_run} fit --config {config_file} --model.lr {parameters['lr'][round(lr)]} "
-              f"--model.weight_decay {parameters['weight_decay'][round(weight_decay)]}"
+    os.system(f"python {script_to_run} fit --config {config_file} --model.lr {lr_value} "
+              f"--model.weight_decay {weight_decay_value}"
               f" --model.use_warmup {use_warmup} --trainer.default_root_dir {args.default_root_dir}")
     # navigate to the trainer's default root dir, get the latest version, find the checkpoint and pick the best val_loss
     last_version = get_last_version()
@@ -82,18 +92,23 @@ def evaluate_clip_model(lr, weight_decay, use_warmup):
 
 
 def evaluate_clipcap_model(clipcap_lr, dropout_transformer, dropout_gpt2, clipcap_weight_decay):
+    clipcap_lr_value = get_parameter_value('clipcap_lr', clipcap_lr)
+    dropout_transformer_value = get_parameter_value('dropout_transformer', dropout_transformer)
+    dropout_gpt2_value = get_parameter_value('dropout_gpt2', dropout_gpt2)
+    clipcap_weight_decay_value = get_parameter_value('clipcap_weight_decay', clipcap_weight_decay)
+
     print(f"Running with config {config_file} and parameters: "
-          f"--model.clipcap_lr {clipcap_lr} "
-          f"--model.dropout_transformer {dropout_transformer} "
-          f"--model.dropout_gpt2 {dropout_gpt2} "
-          f"--model.clipcap_weight_decay {clipcap_weight_decay}")
+          f"--model.clipcap_lr {clipcap_lr_value} "
+          f"--model.dropout_transformer {dropout_transformer_value} "
+          f"--model.dropout_gpt2 {dropout_gpt2_value} "
+          f"--model.clipcap_weight_decay {clipcap_weight_decay_value}")
 
     os.system(f"python {script_to_run} fit "
               f"--config {config_file} "
-              f"--model.clipcap_lr {clipcap_lr} "
-              f"--model.dropout_transformer {dropout_transformer} "
-              f"--model.dropout_gpt2 {dropout_gpt2} "
-              f"--model.clipcap_weight_decay {clipcap_weight_decay} "
+              f"--model.clipcap_lr {clipcap_lr_value} "
+              f"--model.dropout_transformer {dropout_transformer_value} "
+              f"--model.dropout_gpt2 {dropout_gpt2_value} "
+              f"--model.clipcap_weight_decay {clipcap_weight_decay_value} "
               f"--trainer.default_root_dir {args.default_root_dir}")
 
     # Navigate to the trainer's default root dir, get the latest version, find the checkpoint and pick the best val_loss
@@ -109,6 +124,15 @@ def evaluate_clipcap_model(clipcap_lr, dropout_transformer, dropout_gpt2, clipca
 
 # Define the hyperparameter search space for Bayesian Optimization
 def hyper_search_space(grid_file: str):
+    """
+    Define the hyperparameter search space for Bayesian Optimization based on a YAML grid file.
+
+    Args:
+        grid_file (str): Path to the YAML grid file specifying hyperparameter ranges.
+
+    Returns:
+        dict: A dictionary of hyperparameter bounds (pbounds) for Bayesian Optimization.
+    """
     pbounds = {}
 
     with open(grid_file, "r") as f:
@@ -129,7 +153,6 @@ def hyper_search_space(grid_file: str):
                     parameters[param_key] = [int(value) if is_int(value) else float(value) if is_float(value) else value
                                              for value in param_value.split(",")]
                     if len(parameters[param_key]) > 2:
-                        # get min and max value
                         pbounds[param_key] = [0, len(parameters[param_key]) - 1]
                     else:
                         pbounds[param_key] = parameters[param_key]
@@ -138,8 +161,6 @@ def hyper_search_space(grid_file: str):
 
         return pbounds
 
-
-hyper_search_space()
 
 if __name__ == "__main__":
     parser = ArgumentParser()
@@ -150,11 +171,12 @@ if __name__ == "__main__":
     parser.add_argument("--n_iter", type=int, default=10)
     parser.add_argument("--n_init_points", type=int, default=5)
     parser.add_argument("--train_clipcap", type=bool, default=False)
+    parser.add_argument("--random_state", type=int, default=42)
 
     args = parser.parse_args()
-
     optimizer = BayesianOptimization(f=evaluate_clip_model if args.train_clipcap is False else evaluate_clipcap_model,
-                                     pbounds=hyper_search_space(args.grid_file), verbose=2, random_state=42)
-    optimizer.maximize(init_points=5, n_iter=args.n_iter)
+                                     pbounds=hyper_search_space(args.grid_file), verbose=2,
+                                     random_state=args.random_state)
+    optimizer.maximize(init_points=args.n_init_points, n_iter=args.n_iter)
 
     print("Best result: {}; f(x) = {}.".format(optimizer.max["params"], optimizer.max["target"]))
