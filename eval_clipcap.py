@@ -3,6 +3,7 @@ import os
 from typing import Dict
 
 from aac_metrics.functional import sbert_sim, rouge_l, bleu, meteor
+from lightning import seed_everything
 from tqdm import tqdm
 from transformers import CLIPProcessor
 
@@ -10,17 +11,16 @@ from datasets import CaptioningDataset
 from models import CLIPCapWrapper
 from models.clipcap import generate_caption
 from utils import METEOR, SBERT_SIM, ROUGE_L, BLEU, MAX_BLEU, MIN_BLEU, \
-    IMAGE_FIELD, CLIP_MAX_LENGTH
-from evaluation.utils import get_model_basename
+    IMAGE_FIELD, CLIP_MAX_LENGTH, RAW_CAPTION_FIELD
+from evaluation.utils import get_model_basename, get_splits_for_evaluation
 
 
-def eval_model(ds: CaptioningDataset, model: CLIPCapWrapper, preprocessor: CLIPProcessor, args) \
+def eval_model(model: CLIPCapWrapper, preprocessor: CLIPProcessor, args) \
         -> Dict[str, float]:
     """
     Evaluates the performance of the CLIPCapWrapper on a given dataset.
 
     Args:
-        ds (datasets.CaptioningDataset): The dataset to evaluate the model on.
         model (CLIPCapWrapper): The CLIPCapWrapper to be evaluated.
         preprocessor (CLIPProcessor): The CLIPProcessor to preprocess the image with.
         args (argparse.Namespace): The command-line arguments containing the following:
@@ -32,17 +32,19 @@ def eval_model(ds: CaptioningDataset, model: CLIPCapWrapper, preprocessor: CLIPP
         Dict[str, float]: A dictionary containing the average value of each evaluation metric computed on the dataset.
     """
 
+    # Set global seed
+    seed_everything(args.seed)
+
     # Initialize metrics dict and start evaluation
     avg_metrics = {metric: 0.0 for metric in args.metrics}
     no_meteor_count = 0
+    ds = get_splits_for_evaluation(args.annotations_files, args.img_dirs)
     progress_bar = tqdm(range(0, len(ds)), desc=f"Evaluating model, current metrics: {avg_metrics}")
     for i in progress_bar:
 
-        img = preprocessor(images=ds[i][0], truncation=True, padding="max_length", max_length=CLIP_MAX_LENGTH,
+        img = preprocessor(images=ds[i][IMAGE_FIELD], truncation=True, padding="max_length", max_length=CLIP_MAX_LENGTH,
                            return_tensors="pt")[IMAGE_FIELD].to(model.device)
-        # get row from pd dataset to extract all captions
-        row = ds.img_captions.iloc[i, 0]
-        reference_captions = [[sentence['raw'] for sentence in row["sentences"]]]
+        reference_captions = ds[i][RAW_CAPTION_FIELD]
 
         # Get the caption
         preds = generate_caption(imgs=img,
@@ -108,16 +110,21 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
+    parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--scores_dir", type=str, default=os.path.join(os.getcwd(), "eval_results"))
     parser.add_argument("--scores_file", type=str, default="clip_cap_scores.tsv")
     parser.add_argument("--model_pth", type=str, help="Path of the model to evaluate", required=True)
     parser.add_argument("--processor", type=str, default="openai/clip-vit-base-patch32",
                         help="Processor from CLIPProcessor.from_pretrained to preprocess data")
-    parser.add_argument("--annotations_file", type=str, required=True)
-    parser.add_argument("--imgs_dir", type=str, required=True)
     parser.add_argument("--use_beam_search", type=bool, default=False)
     parser.add_argument('--metrics', nargs='*',
                         default=[ROUGE_L, SBERT_SIM, f'{BLEU}1', f'{BLEU}2', f'{BLEU}3', f'{BLEU}4'],
                         help='the metrics to use during evaluation')
+    parser.add_argument("--annotations_files", nargs='*',
+                        default=["./data/dataset_rsicd.json", "./data/dataset_ucmd.json", "./data/dataset_rsitmd.json",
+                                 "./data/dataset_nais.json"])
+    parser.add_argument("--img_dirs", nargs='*',
+                        default=["./data/RSICD/RSICD_images", "./data/UCMD/UCMD_images", "./data/RSITMD/RSITMD_images",
+                                 "./data/NAIS/NAIS_images"])
 
     main(parser.parse_args())
