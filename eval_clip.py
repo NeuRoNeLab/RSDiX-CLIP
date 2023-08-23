@@ -16,6 +16,22 @@ K_VALUES = [1, 3, 5, 10]
 
 
 def predict_image(img_file, model, processor, eval_sentences, classes_names, k, imgs_dir):
+    """
+    Predicts classes for an input image.
+
+    Args:
+        img_file (str): The filename of the image.
+        model (CLIPWrapper): The pre-trained CLIP model.
+        processor (CLIPProcessor): The CLIP processor for data preprocessing.
+        eval_sentences (list of str): Evaluation sentences corresponding to class names.
+        classes_names (list of str): List of class names.
+        k (int): The number of top predictions to consider.
+        imgs_dir (str): Directory containing the evaluation images.
+
+    Returns:
+        str: The true label of the image.
+        list of tuple: A list of top-K predicted class-label and probability pairs.
+        """
     label = img_file.split("_")[0]
     img_file = os.path.join(imgs_dir, img_file)
 
@@ -43,6 +59,17 @@ def predict_image(img_file, model, processor, eval_sentences, classes_names, k, 
 
 
 def predict(model, processor, eval_images, classes_names, model_scores_file, imgs_dir):
+    """
+    Predicts classes for a list of evaluation images using a CLIP model and computes scores.
+
+    Args:
+        model (CLIPWrapper): The pre-trained CLIP model.
+        processor (CLIPProcessor): The CLIP processor for data preprocessing.
+        eval_images (list of str): List of image filenames to evaluate.
+        classes_names (list of str): List of class names.
+        model_scores_file (str): Path to the file to store prediction scores.
+        imgs_dir (str): Directory containing the evaluation images.
+    """
     print("Generating predictions...")
     eval_sentences = [f"Aerial photograph of {cn}" for cn in classes_names]
     images_predicted = 0
@@ -60,6 +87,14 @@ def predict(model, processor, eval_images, classes_names, model_scores_file, img
 
 
 def compute_scores(scores_file, model_scores_file, model_basename):
+    """
+    Computes final accuracy scores based on prediction results.
+
+    Args:
+        scores_file (str): Path to the file to store final scores.
+        model_scores_file (str): Path to the file containing prediction scores.
+        model_basename (str): Basename of the model being evaluated.
+    """
     print("Computing final scores...")
     num_examples = 0
     correct_k = [0] * len(K_VALUES)

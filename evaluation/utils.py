@@ -5,6 +5,15 @@ from typing import List
 
 
 def get_model_basename(model):
+    """
+    Extracts the base name of a model file.
+
+    Args:
+        model (str): The file path to the mode
+
+    Returns:
+        str: The base name of the model file.
+    """
     return '.'.join(model.split(os.sep)[-1].split(".")[:-1])
 
 

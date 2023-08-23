@@ -18,7 +18,9 @@ from utils import DEFAULT_TRANSFORMS, IMAGE_DEFAULT_C, IMAGE_DEFAULT_H, IMAGE_DE
 
 
 class CaptioningDataset(Dataset):
-    """  Custom PyTorch Dataset for the remote sensing datasets like RSICD, UCMD, RSITMD. """
+    """
+    Custom PyTorch Dataset for the remote sensing datasets like RSICD, UCMD, RSITMD.
+    """
     def __init__(self,
                  annotations_file: str,
                  img_dir: str,
@@ -28,16 +30,17 @@ class CaptioningDataset(Dataset):
                  augment_text_data: bool = False,
                  dataset_name: str = "RSICD"):
         """
+        Initializes a CaptioningDataset instance.
 
-            Args:
-                annotations_file (string): Path to the file containing the annotations.
-                img_dir (string): Directory with all the NAIS_images.
-                img_transform (callable, optional): Optional transform to be applied on an image. If None, random
-                    transformations will be applied.
-                target_transform (callable, optional): Optional transform to be applied on a caption.
-                augment_image_data (bool): Whether to apply transforms to augment image data.
-                augment_text_data (bool): Whether to apply transforms to augment text data.
-                dataset_name (str): The dataset name.
+        Args:
+            annotations_file (str): Path to the file containing the annotations.
+            img_dir (str): Directory with all the NAIS_images.
+            img_transform (callable, optional): Optional transform to be applied on an image. If None, random
+                transformations will be applied.
+            target_transform (callable, optional): Optional transform to be applied on a caption.
+            augment_image_data (bool): Whether to apply transforms to augment image data.
+            augment_text_data (bool): Whether to apply transforms to augment text data.
+            dataset_name (str): The dataset name.
         """
         torch.multiprocessing.set_sharing_strategy('file_system')
         # get annotations_file extension
@@ -62,7 +65,7 @@ class CaptioningDataset(Dataset):
         return self._img_captions
 
     @property
-    def get_img_dir(self) -> str:
+    def img_dir(self) -> str:
         return self._img_dir
 
     @property
@@ -145,24 +148,33 @@ class CaptioningDataModule(l.LightningDataModule):
                  processor: str = None,
                  use_gpt2_tokenizer: bool = False):
         """
-            Args:
-                annotations_files (List[string]): Path or Paths to the file containing the annotations.
-                img_dirs (List[string]): Directory or Directories with all the images.
-                img_transform (callable, optional): Optional transforms to be applied on an image in order to perform
-                    data augmentation. If None, random transformations will be applied.
-                target_transform (callable, optional): Optional transforms to be applied on a caption.
-                train_split_percentage (float): The training set split percentage. If smaller than 100, the remaining
-                    will be divided between the validation and test set.
-                val_split_percentage (float): The validation set split percentage. If train_split + val_split is smaller
-                    than 100, the remaining will be used to split train set.
-                batch_size (int): The batch size of each dataloader.
-                num_workers (int, optional): The number of workers in the DataLoader. Defaults to 0.
-                augment_image_data (bool): Whether to apply transforms to augment image data.
-                augment_text_data (bool): Whether to apply transforms to augment text data.
-                shuffle (bool, optional): Whether to have shuffling behavior during sampling. Defaults to False.
-                processor (str): The CLIPProcessor to preprocess the batches.
-                use_gpt2_tokenizer (bool): Whether to use GPT2-Tokenizer for tokenization. True if training ClipCap.
-            """
+        Initialize the CaptioningDataModule.
+
+        Args:
+            annotations_files (Union[str, List[str]]): Path or Paths to the file(s) containing the annotations.
+            img_dirs (Union[str, List[str]]): Directory or Directories with all the images.
+            additional_test_annotation_files (Optional[List[Optional[str]]]): Optional list of paths to additional
+                test annotation files. Defaults to None.
+            img_transform (callable, optional): Optional transforms to be applied on an image for data augmentation.
+                If None, random transformations will be applied. Defaults to None.
+            target_transform (callable, optional): Optional transforms to be applied on a caption. Defaults to None.
+            train_split_percentage (float): The training set split percentage. If smaller than 100, the remaining
+                will be divided between the validation and test set. Defaults to TRAIN_SPLIT_PERCENTAGE.
+            val_split_percentage (float): The validation set split percentage. If train_split + val_split is smaller
+                than 100, the remaining will be used to split the train set. Defaults to VAL_SPLIT_PERCENTAGE.
+            batch_size (int): The batch size of each dataloader. Defaults to BATCH_SIZE.
+            num_workers (int, optional): The number of workers in the DataLoader. Defaults to 0.
+            augment_image_data (bool): Whether to apply transforms to augment image data. Defaults to False.
+            augment_text_data (bool): Whether to apply transforms to augment text data. Defaults to False.
+            shuffle (bool, optional): Whether to have shuffling behavior during sampling. Defaults to False.
+            processor (str): The CLIPProcessor to preprocess the batches. Defaults to None.
+            use_gpt2_tokenizer (bool): Whether to use GPT2-Tokenizer for tokenization. True if training ClipCap.
+
+        Raises:
+            Exception: If annotations_files and img_dirs have different types (str vs. list).
+            Exception: If annotations_files is a list and its length is not equal to img_dirs' length.
+            Exception: If additional_test_annotation_files' length is greater than annotations_files' length.
+        """
         super().__init__()
 
         # check if type is the same, can't have str and list

@@ -50,6 +50,19 @@ def sinkhorn(cost_mat, eps=0.05, niter=5, r_prob=None, c_prob=None):
 
 @torch.no_grad()
 def compute_similarities(i_emb, t_emb):
+    """
+    Compute similarities between image and text embeddings.
+
+    Args:
+        i_emb (torch.Tensor): Embeddings for images.
+        t_emb (torch.Tensor): Embeddings for text.
+
+    Returns:
+        sim_ii (torch.Tensor): Similarities between image embeddings.
+        sim_tt (torch.Tensor): Similarities between text embeddings.
+        sim_it (torch.Tensor): Similarities between image and text embeddings.
+        sim_ti (torch.Tensor): Similarities between text and image embeddings.
+    """
     sim_ii, sim_tt = torch.matmul(i_emb, i_emb.t()), torch.matmul(t_emb, t_emb.t())
     sim_it, sim_ti = torch.matmul(i_emb, t_emb.t()), torch.matmul(t_emb, i_emb.t())
     return sim_ii, sim_tt, sim_it, sim_ti
@@ -58,6 +71,22 @@ def compute_similarities(i_emb, t_emb):
 @torch.no_grad()
 def compute_teacher_targets(teacher_images_embs, teacher_text_embs, ii_coeff, tt_coeff, sinkhorn_lambda, sinkhorn_iter,
                             remove_diag):
+    """
+    Compute teacher targets for self-distillation.
+
+    Args:
+        teacher_images_embs (torch.Tensor): Embeddings for images from the teacher model.
+        teacher_text_embs (torch.Tensor): Embeddings for text from the teacher model.
+        ii_coeff (float): Coefficient for image-image similarity in teacher targets.
+        tt_coeff (float): Coefficient for text-text similarity in teacher targets.
+        sinkhorn_lambda (float): Sinkhorn regularization parameter.
+        sinkhorn_iter (int): Number of iterations for Sinkhorn distance computation.
+        remove_diag (bool): Flag to remove diagonal elements when computing teacher targets.
+
+    Returns:
+        images_target_prob (torch.Tensor): Target probabilities for images.
+        text_target_prob (torch.Tensor): Target probabilities for text.
+    """
     sim_ii, sim_tt, sim_it, sim_ti = compute_similarities(teacher_images_embs, teacher_text_embs)
 
     diag = (torch.eye(*sim_ii.shape) * remove_diag * 1e2).to(teacher_images_embs.device)
@@ -81,6 +110,20 @@ def compute_teacher_targets(teacher_images_embs, teacher_text_embs, ii_coeff, tt
 
 @torch.no_grad()
 def compute_st_similarities(clip_image_embeddings, clip_text_embeddings, st_embeddings):
+    """
+    Compute similarities between CLIP and Sentence-BERT embeddings.
+
+    Args:
+        clip_image_embeddings (torch.Tensor): CLIP embeddings for images.
+        clip_text_embeddings (torch.Tensor): CLIP embeddings for text.
+        st_embeddings (torch.Tensor): Sentence-BERT embeddings for text.
+
+    Returns:
+        image_image_similarities (torch.Tensor): Similarities between CLIP image embeddings.
+        image_text_similarities (torch.Tensor): Similarities between CLIP image and text embeddings.
+        text_text_similarities_clip (torch.Tensor): Similarities between CLIP text embeddings.
+        text_text_similarities_st (torch.Tensor): Similarities between Sentence-BERT text embeddings.
+    """
     image_image_similarities = cos_sim(clip_image_embeddings, clip_image_embeddings)
     image_text_similarities = cos_sim(clip_image_embeddings, clip_text_embeddings)
     text_text_similarities_clip = cos_sim(clip_text_embeddings, clip_text_embeddings)
@@ -95,6 +138,19 @@ def compute_mse_similarities(image_image_similarities: torch.Tensor,
                              text_text_similarities_clip: torch.Tensor,
                              text_text_similarities_st: torch.Tensor,
                              reduction: str = "mean") -> torch.Tensor:
+    """
+    Compute Mean Squared Error (MSE) between similarity matrices.
+
+    Args:
+        image_image_similarities (torch.Tensor): Similarities between CLIP image embeddings.
+        image_text_similarities (torch.Tensor): Similarities between CLIP image and text embeddings.
+        text_text_similarities_clip (torch.Tensor): Similarities between CLIP text embeddings.
+        text_text_similarities_st (torch.Tensor): Similarities between Sentence-BERT text embeddings.
+        reduction (str): Reduction method for MSE calculation ("mean" or "sum").
+
+    Returns:
+        mse_tensor (torch.Tensor): MSE between similarity matrices.
+    """
     if reduction not in REDUCTIONS:
         raise ValueError(f"'reduction' parameter must be one of {REDUCTIONS}. {reduction} given.")
 
@@ -117,6 +173,18 @@ def compute_mse_similarities(image_image_similarities: torch.Tensor,
 
 @torch.no_grad()
 def compute_mse(clip_image_embeddings, clip_text_embeddings, st_embeddings, device):
+    """
+    Compute Mean Squared Error (MSE) between CLIP and Sentence-BERT embeddings.
+
+    Args:
+        clip_image_embeddings (torch.Tensor): CLIP embeddings for images.
+        clip_text_embeddings (torch.Tensor): CLIP embeddings for text.
+        st_embeddings (torch.Tensor): Sentence-BERT embeddings for text.
+        device: The device on which to perform computations.
+
+    Returns:
+        mse (torch.Tensor): Mean Squared Error between CLIP and Sentence-BERT embeddings.
+    """
     ii_sim, it_sim, tt_sim_clip, tt_sim_st = compute_st_similarities(clip_image_embeddings, clip_text_embeddings,
                                                                      st_embeddings)
 
@@ -127,6 +195,16 @@ def compute_mse(clip_image_embeddings, clip_text_embeddings, st_embeddings, devi
 
 
 def compute_accuracy(images_logits: torch.Tensor, batch_size: int):
+    """
+    Compute accuracy based on CLIP image-text similarity logits.
+
+    Args:
+        images_logits (torch.Tensor): Logits representing image-text similarity.
+        batch_size (int): Number of samples in the batch.
+
+    Returns:
+        accuracy (float): Accuracy based on the logits.
+    """
     ground_truth = torch.arange(len(images_logits)).to(images_logits.device)
 
     acc_i = (torch.argmax(images_logits, 1) == ground_truth).sum()

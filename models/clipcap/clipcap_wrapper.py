@@ -14,6 +14,9 @@ from utils import IMAGE_FIELD, BETAS, GPT2_CAPTION_TOKENS_FIELD, ALLOWED_METRICS
 
 
 class CLIPCapWrapper(l.LightningModule):
+    """
+    A LightningModule wrapper for a CLIP-based image captioning model.
+    """
 
     def __init__(self,
                  prefix_length: int,
@@ -51,6 +54,46 @@ class CLIPCapWrapper(l.LightningModule):
                  pad_token: str = None,
                  every_n_batches: int = 10,
                  freeze_clip_encoder: bool = True):
+        """
+        Initializes the ClipCapWrapper.
+
+        Args:
+            prefix_length (int): Length of the prefix token used for text generation.
+            clip_length (Optional[int]): Length of the CLIP context window. If None, it uses the default context length.
+            prefix_size (int): Size of the prefix embedding layer.
+            num_layers (int): Number of layers for the text-to-text (T2T) mapping.
+            mapping_type (MappingType): Type of the mapping function (MLP or Linear).
+            dropout_transformer (float): Dropout rate for the T2T transformer.
+            dropout_gpt2 (Optional[float]): Dropout rate for the GPT2-based caption decoder.
+            clipcap_lr (float): Learning rate for the CLIPCap model.
+            clipcap_weight_decay (float): Weight decay for the CLIPCap model.
+            clipcap_warmup_steps (int): Number of warm-up steps for learning rate scheduling.
+            model (str): Pre-trained CLIP model to use.
+            lr (Optional[float]): Learning rate for the CLIP model.
+            alpha (float): Alpha parameter for the Sinkhorn-Knopp algorithm.
+            ema_decay (float): Exponential moving average decay for model parameters.
+            weight_decay (float): Weight decay for the optimizer.
+            start_factor (float): Start factor for learning rate scheduling.
+            end_factor (float): End factor for learning rate scheduling.
+            total_iters (int): Total number of iterations for learning rate scheduling.
+            use_warmup (str): Warm-up strategy for the learning rate scheduler.
+            warmup_steps (int): Number of warm-up steps for learning rate scheduling.
+            eps (float): Epsilon value for numerical stability in Sinkhorn-Knopp.
+            betas (tuple[float, float]): Beta values for the AdamW optimizer.
+            sinkhorn_lambda (float): Lambda parameter for the Sinkhorn-Knopp algorithm.
+            sinkhorn_iter (int): Number of iterations for Sinkhorn-Knopp.
+            ii_coeff (float): Coefficient for the image-image matching loss.
+            tt_coeff (float): Coefficient for the text-text matching loss.
+            remove_diag (bool): Whether to remove the diagonal of the similarity matrix.
+            load_from_checkpoint (bool): Whether to load the CLIP model from a checkpoint.
+            checkpoint_path (str): Path to the CLIP model checkpoint.
+            metrics (Union[str, list]): Evaluation metrics for the model.
+            use_beam_search (bool): Whether to use beam search for text generation.
+            tokenizer (str): Pre-trained tokenizer for text generation.
+            pad_token (str): Token used for padding sequences. If None, the EOS token is used for padding.
+            every_n_batches (int): Frequency of computing evaluation metrics.
+            freeze_clip_encoder (bool): Whether to freeze the CLIP encoder during training.
+        """
         super().__init__()
 
         if isinstance(metrics, str):
@@ -178,21 +221,57 @@ class CLIPCapWrapper(l.LightningModule):
         }
 
     @property
-    def clip_encoder(self):
+    def clip_encoder(self) -> CLIPWrapper:
+        """
+        Get the CLIP image encoder.
+
+        Returns:
+            CLIPWrapper: The CLIP image encoder.
+        """
         return self._clip_encoder
 
     @property
-    def gpt2_tokenizer(self):
+    def gpt2_tokenizer(self) -> GPT2Tokenizer:
+        """
+        Get the GPT-2 tokenizer.
+
+        Returns:
+            GPT2Tokenizer: The GPT-2 tokenizer.
+        """
         return self._gpt2_tokenizer
 
     @property
-    def clipcap(self):
+    def clipcap(self) -> ClipCaptionModel:
+        """
+        Get the ClipCaptionModel.
+
+        Returns:
+            ClipCaptionModel: The ClipCaptionModel.
+        """
         return self._clipcap
 
     @property
-    def clipcap_lr(self):
+    def clipcap_lr(self) -> float:
+        """
+        Get the learning rate for the clipcap model.
+
+        Returns:
+            float: The learning rate for the clipcap model.
+
+        Note:
+            This is necessary in order to use PytorchLightning's Tuner.
+        """
         return self._clipcap_lr
 
     @clipcap_lr.setter
-    def clipcap_lr(self, lr):
+    def clipcap_lr(self, lr: float):
+        """
+        Set the learning rate for the clipcap model.
+
+        Args:
+            lr (float): The new learning rate to set for the clipcap model.
+
+        Note:
+            This is necessary in order to use PytorchLightning's Tuner.
+        """
         self._clipcap_lr = lr
