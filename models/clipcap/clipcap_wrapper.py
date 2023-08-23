@@ -1,3 +1,4 @@
+import os
 from typing import Optional, Union
 
 import lightning as l
@@ -135,10 +136,12 @@ class CLIPCapWrapper(l.LightningModule):
             for metric in self._metrics:
                 if metric == METEOR:
                     try:
-                        value, _ = METRICS[metric](candidates=preds, mult_references=raw_captions)
+                        value, _ = METRICS[metric](candidates=preds, mult_references=raw_captions,
+                                                   java_path=os.getenv("JAVA_HOME"))
                         value = value[metric].item()
-                        self._avg_metrics[METEOR] = self._avg_metrics[metric] + 1 / (self._avg_metrics_idx + 1 - self._no_meteor_count) * (
-                                value - self._avg_metrics[metric])
+                        self._avg_metrics[METEOR] = self._avg_metrics[metric] + 1 / (
+                                    self._avg_metrics_idx + 1 - self._no_meteor_count) * (
+                                                            value - self._avg_metrics[metric])
                     except ValueError as e:
                         print(f"Meteor could not be computed due to error {e.with_traceback(None)} "
                               f"on the couple: ({preds}, {raw_captions}). "
@@ -151,7 +154,8 @@ class CLIPCapWrapper(l.LightningModule):
                     else:
                         value, _ = METRICS[metric](candidates=preds, mult_references=raw_captions)
                     value = value[metric].item()
-                    self._avg_metrics[metric] = self._avg_metrics[metric] + 1 / (self._avg_metrics_idx + 1) * (value - self._avg_metrics[metric])
+                    self._avg_metrics[metric] = self._avg_metrics[metric] + 1 / (self._avg_metrics_idx + 1) * (
+                                value - self._avg_metrics[metric])
                 self._avg_metrics_idx = self._avg_metrics_idx + 1
 
         self._avg_metrics['val_loss'] = val_loss.item()
