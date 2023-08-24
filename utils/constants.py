@@ -37,7 +37,7 @@ DEFAULT_TRANSFORMS = t.RandomApply(torch.nn.ModuleList(
 TRAIN_SPLIT_PERCENTAGE = 80
 VAL_SPLIT_PERCENTAGE = 10
 
-CONFIG_DIR = "models/configs"
+CONFIG_DIR = "models/clip/configs"
 VIT_CONFIG_FILE = "ViT.yaml"
 
 BETAS = (0.9, 0.99)
@@ -54,12 +54,11 @@ SBERT_SIM: Final[str] = "sbert_sim"
 BLEU: Final[str] = "bleu_"
 MIN_BLEU: Final[int] = 1
 MAX_BLEU: Final[int] = 4
-ALLOWED_METRICS = [METEOR, SBERT_SIM, ROUGE_L, BLEU]
+ALLOWED_METRICS = [METEOR, SBERT_SIM, ROUGE_L, BLEU, f'{BLEU}1', f'{BLEU}2', f'{BLEU}3', f'{BLEU}4']
 METRICS = {
     METEOR: meteor,
     SBERT_SIM: sbert_sim,
     ROUGE_L: rouge_l,
     BLEU: bleu
 }
-GPT2_MAX_LENGTH = 3
 CLIP_MAX_LENGTH = 77

@@ -1,6 +1,6 @@
 import os
 import random
-from typing import List, Union, Optional
+from typing import List, Union, Optional, Tuple
 
 import lightning as l
 import pandas as pd
@@ -18,21 +18,29 @@ from utils import DEFAULT_TRANSFORMS, IMAGE_DEFAULT_C, IMAGE_DEFAULT_H, IMAGE_DE
 
 
 class CaptioningDataset(Dataset):
+    """
+    Custom PyTorch Dataset for the remote sensing datasets like RSICD, UCMD, RSITMD.
+    """
     def __init__(self,
                  annotations_file: str,
                  img_dir: str,
                  img_transform=None,
                  target_transform=None,
-                 train: bool = False,
+                 augment_image_data: bool = False,
+                 augment_text_data: bool = False,
                  dataset_name: str = "RSICD"):
         """
-            Args:
-                annotations_file (string): Path to the file containing the annotations.
-                img_dir (string): Directory with all the NAIS_images.
-                img_transform (callable, optional): Optional transform to be applied on an image. If None, random
-                    transformations will be applied.
-                target_transform (callable, optional): Optional transform to be applied on a caption.
-                train (bool): Whether to apply transforms to augment data based on the current stage.
+        Initializes a CaptioningDataset instance.
+
+        Args:
+            annotations_file (str): Path to the file containing the annotations.
+            img_dir (str): Directory with all the NAIS_images.
+            img_transform (callable, optional): Optional transform to be applied on an image. If None, random
+                transformations will be applied.
+            target_transform (callable, optional): Optional transform to be applied on a caption.
+            augment_image_data (bool): Whether to apply transforms to augment image data.
+            augment_text_data (bool): Whether to apply transforms to augment text data.
+            dataset_name (str): The dataset name.
         """
         torch.multiprocessing.set_sharing_strategy('file_system')
         # get annotations_file extension
@@ -47,17 +55,17 @@ class CaptioningDataset(Dataset):
 
         self._img_dir = img_dir
         self._img_transform = img_transform if img_transform is not None else DEFAULT_TRANSFORMS
-        self._target_transform = target_transform
-        self._train = train
+        self._target_transform = target_transform if target_transform is not None else BackTranslation()
+        self._augment_image_data = augment_image_data
+        self._augment_text_data = augment_text_data
         self._dataset_name = dataset_name
-        self._back_translation = BackTranslation()
 
     @property
     def img_captions(self):
         return self._img_captions
 
     @property
-    def get_img_dir(self) -> str:
+    def img_dir(self) -> str:
         return self._img_dir
 
     @property
@@ -69,21 +77,27 @@ class CaptioningDataset(Dataset):
         return self._target_transform
 
     @property
-    def train(self) -> bool:
-        return self._train
-
-    @property
     def dataset_name(self) -> str:
         return self._dataset_name
 
     def __len__(self) -> int:
+        """
+            Get the number of samples in the dataset.
+
+            Returns:
+                int: The number of samples in the dataset.
+        """
         return len(self._img_captions)
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx) -> Tuple[torch.Tensor, str]:
         """
-            Returns a tuple containing the image and the caption.
+            Get an item from the dataset.
+
             Arguments:
                 idx (int, Tensor): The index of the item to return.
+
+            Returns:
+                Tuple[torch.Tensor, str]: image, caption
         """
         if torch.is_tensor(idx):
             idx = idx.tolist()
@@ -108,13 +122,11 @@ class CaptioningDataset(Dataset):
         if list(image.shape) != [IMAGE_DEFAULT_C, IMAGE_DEFAULT_H, IMAGE_DEFAULT_W]:
             image = t.Resize((IMAGE_DEFAULT_H, IMAGE_DEFAULT_W), antialias=True)(image)
 
-        if self._train:
+        if self._augment_image_data:
             image = self._img_transform(image)
-            # back translation
-            caption = self._back_translation(caption)
 
-            if self._target_transform:
-                caption = self._target_transform(caption)
+        if self._augment_text_data:
+            caption = self._target_transform(caption)
 
         return image, caption
 
@@ -130,24 +142,39 @@ class CaptioningDataModule(l.LightningDataModule):
                  val_split_percentage: float = VAL_SPLIT_PERCENTAGE,
                  batch_size: int = BATCH_SIZE,
                  num_workers: int = 0,
+                 augment_image_data: bool = False,
+                 augment_text_data: bool = False,
                  shuffle: bool = False,
                  processor: str = None,
                  use_gpt2_tokenizer: bool = False):
         """
-            Args:
-                annotations_files (List[string]): Path or Paths to the file containing the annotations.
-                img_dirs (List[string]): Directory or Directories with all the images.
-                img_transform (callable, optional): Optional transforms to be applied on an image in order to perform
-                    data augmentation. If None, random transformations will be applied.
-                target_transform (callable, optional): Optional transforms to be applied on a caption.
-                train_split_percentage (float): The training set split percentage. If smaller than 100, the remaining
-                    will be divided between the validation and test set.
-                val_split_percentage (float): The validation set split percentage. If train_split + val_split is smaller
-                    than 100, the remaining will be used to split train set.
-                batch_size (int): The batch size of each dataloader.
-                num_workers (int, optional): The number of workers in the DataLoader. Defaults to 0.
-                shuffle (bool, optional): Whether to have shuffling behavior during sampling. Defaults to False.
-            """
+        Initialize the CaptioningDataModule.
+
+        Args:
+            annotations_files (Union[str, List[str]]): Path or Paths to the file(s) containing the annotations.
+            img_dirs (Union[str, List[str]]): Directory or Directories with all the images.
+            additional_test_annotation_files (Optional[List[Optional[str]]]): Optional list of paths to additional
+                test annotation files. Defaults to None.
+            img_transform (callable, optional): Optional transforms to be applied on an image for data augmentation.
+                If None, random transformations will be applied. Defaults to None.
+            target_transform (callable, optional): Optional transforms to be applied on a caption. Defaults to None.
+            train_split_percentage (float): The training set split percentage. If smaller than 100, the remaining
+                will be divided between the validation and test set. Defaults to TRAIN_SPLIT_PERCENTAGE.
+            val_split_percentage (float): The validation set split percentage. If train_split + val_split is smaller
+                than 100, the remaining will be used to split the train set. Defaults to VAL_SPLIT_PERCENTAGE.
+            batch_size (int): The batch size of each dataloader. Defaults to BATCH_SIZE.
+            num_workers (int, optional): The number of workers in the DataLoader. Defaults to 0.
+            augment_image_data (bool): Whether to apply transforms to augment image data. Defaults to False.
+            augment_text_data (bool): Whether to apply transforms to augment text data. Defaults to False.
+            shuffle (bool, optional): Whether to have shuffling behavior during sampling. Defaults to False.
+            processor (str): The CLIPProcessor to preprocess the batches. Defaults to None.
+            use_gpt2_tokenizer (bool): Whether to use GPT2-Tokenizer for tokenization. True if training ClipCap.
+
+        Raises:
+            Exception: If annotations_files and img_dirs have different types (str vs. list).
+            Exception: If annotations_files is a list and its length is not equal to img_dirs' length.
+            Exception: If additional_test_annotation_files' length is greater than annotations_files' length.
+        """
         super().__init__()
 
         # check if type is the same, can't have str and list
@@ -179,6 +206,8 @@ class CaptioningDataModule(l.LightningDataModule):
         self._val_split_percentage = val_split_percentage
         self._batch_size = batch_size
         self._num_workers = num_workers
+        self._augment_image_data = augment_image_data,
+        self._augment_text_data = augment_text_data
         self._shuffle = shuffle
 
         if processor is None:
@@ -196,7 +225,9 @@ class CaptioningDataModule(l.LightningDataModule):
         self._test_set = None
 
     def setup(self, stage: str):
-        train = stage == 'fit'
+        # if the current stage is testing or validation, disable data augmentation
+        self._augment_image_data = self._augment_image_data if stage == 'fit' else False
+        self._augment_text_data = self._augment_text_data if stage == 'fit' else False
 
         if isinstance(self._annotations_files, list):
             train_sets = []
@@ -208,7 +239,8 @@ class CaptioningDataModule(l.LightningDataModule):
                                                        img_dir=self._img_dirs[i],
                                                        img_transform=self._img_transform,
                                                        target_transform=self._target_transform,
-                                                       train=train)
+                                                       augment_image_data=self._augment_image_data,
+                                                       augment_text_data=self._augment_text_data)
 
                 # If the i-th test set is defined externally
                 if self._additional_test_annotation_files[i] is not None:
@@ -218,7 +250,8 @@ class CaptioningDataModule(l.LightningDataModule):
                                                  img_dir=self._img_dirs[i],
                                                  img_transform=self._img_transform,
                                                  target_transform=self._target_transform,
-                                                 train=False)
+                                                 augment_text_data=False,
+                                                 augment_image_data=False)
 
                     # Split only train and validation
                     train_split_percentage = 100.0 - self._val_split_percentage
@@ -249,7 +282,8 @@ class CaptioningDataModule(l.LightningDataModule):
                                         img_dir=self._img_dirs,
                                         img_transform=self._img_transform,
                                         target_transform=self._target_transform,
-                                        train=train)
+                                        augment_image_data=self._augment_image_data,
+                                        augment_text_data=self._augment_text_data)
 
             # Randomly split train/val/test
             train_split, val_split, test_split = get_splits(n_instances=len(dataset),

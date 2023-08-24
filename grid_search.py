@@ -1,8 +1,19 @@
+from argparse import ArgumentParser
 
 import yaml
 
 
 def generate_combinations(params, keys_array, keys_count, current_key_index=0, run_params=None):
+    """
+    Generate parameter combinations and print commands.
+
+    Args:
+        params (dict): Dictionary of parameter names and values.
+        keys_array (list): List of parameter keys.
+        keys_count (int): Number of parameter combinations to generate.
+        current_key_index (int): Index of the current parameter key.
+        run_params (dict): Dictionary to store the generated parameter combination.
+    """
     if run_params is None:
         run_params = {}
 
@@ -32,25 +43,30 @@ def generate_combinations(params, keys_array, keys_count, current_key_index=0, r
 
 
 if __name__ == "__main__":
-    with open("grid.yaml", "r") as f:
+    parser = ArgumentParser()
+
+    parser.add_argument("--grid_search_file", type=str, default="clip_grid.yaml")
+    args = parser.parse_args()
+
+    with open(args.grid_search_file, "r") as f:
         data = yaml.safe_load(f)
 
     script = data["script"]
     config_file = data["config_file"]
     attr_keys = data["attr_keys"]
 
-    params = {}
-    keys_array = []
+    model_params = {}
+    params_keys_array = []
     keys_len = 0
 
     for attr_key, parameters in attr_keys.items():
         for param_key, param_value in parameters.items():
             if isinstance(param_value, str):
-                params[f"{attr_key}.{param_key}"] = param_value
+                model_params[f"{attr_key}.{param_key}"] = param_value
             elif isinstance(param_value, list):
-                params[f"{attr_key}.{param_key}"] = ",".join(str(val) for val in param_value)
+                model_params[f"{attr_key}.{param_key}"] = ",".join(str(val) for val in param_value)
 
-            keys_array.append(f"{attr_key}.{param_key}")
+            params_keys_array.append(f"{attr_key}.{param_key}")
             keys_len += 1
 
-    generate_combinations(params, keys_array, keys_len)
+    generate_combinations(model_params, params_keys_array, keys_len)

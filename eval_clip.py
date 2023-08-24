@@ -1,60 +1,37 @@
-import os
-import json
-
-import torch
 import argparse
+import os
 
 import numpy as np
-import matplotlib.pyplot as plt
-
+import torch
 from PIL import Image
-from transformers import CLIPProcessor, CLIPModel
 from torchvision import transforms as t
 from torchvision.io import read_image
 from tqdm import tqdm
+from transformers import CLIPProcessor
 
 from models import CLIPWrapper
-
-from typing import List
+from evaluation.utils import get_eval_images, get_model_basename, get_classes
 
 K_VALUES = [1, 3, 5, 10]
 
 
-def get_model_basename(model):
-    return '.'.join(model.split(os.sep)[-1].split(".")[:-1])
-
-
-def get_eval_images(annotations_file: str) -> List[str]:
-    """Returns all the images in the dataset which name follows the pattern: 'class_number.ext'
-        Example:
-            - airport_344.jpg will be taken into consideration
-            - 0001.jpg will be ignored"""
-    print("Retrieving evaluation images...")
-
-    annotations_file_ext = annotations_file.split(".")[-1]
-    if annotations_file_ext != "json":
-        raise Exception(f"annotations_file type: '{annotations_file_ext}' not supported. JSON only is supported.")
-
-    with open(annotations_file, "r") as f:
-        data = json.loads(f.read())
-
-    eval_images = [image["filename"] for image in data["images"] if image["split"] == "test" and
-                   image["filename"].find("_") > 0]
-    print(f"Retrieved {len(eval_images)} images")
-    return eval_images
-
-
-def get_classes(imgs_dir: str) -> List[str]:
-    """Returns all the classes contained in the dataset"""
-
-    print("Retrieving classes...")
-    class_names = sorted(list(set([image_name.split("_")[0] for image_name in os.listdir(imgs_dir)
-                                   if image_name.find("_") > -1])))
-    print(f"Retrieved {len(class_names)} classes")
-    return class_names
-
-
 def predict_image(img_file, model, processor, eval_sentences, classes_names, k, imgs_dir):
+    """
+    Predicts classes for an input image.
+
+    Args:
+        img_file (str): The filename of the image.
+        model (CLIPWrapper): The pre-trained CLIP model.
+        processor (CLIPProcessor): The CLIP processor for data preprocessing.
+        eval_sentences (list of str): Evaluation sentences corresponding to class names.
+        classes_names (list of str): List of class names.
+        k (int): The number of top predictions to consider.
+        imgs_dir (str): Directory containing the evaluation images.
+
+    Returns:
+        str: The true label of the image.
+        list of tuple: A list of top-K predicted class-label and probability pairs.
+        """
     label = img_file.split("_")[0]
     img_file = os.path.join(imgs_dir, img_file)
 
@@ -82,6 +59,17 @@ def predict_image(img_file, model, processor, eval_sentences, classes_names, k, 
 
 
 def predict(model, processor, eval_images, classes_names, model_scores_file, imgs_dir):
+    """
+    Predicts classes for a list of evaluation images using a CLIP model and computes scores.
+
+    Args:
+        model (CLIPWrapper): The pre-trained CLIP model.
+        processor (CLIPProcessor): The CLIP processor for data preprocessing.
+        eval_images (list of str): List of image filenames to evaluate.
+        classes_names (list of str): List of class names.
+        model_scores_file (str): Path to the file to store prediction scores.
+        imgs_dir (str): Directory containing the evaluation images.
+    """
     print("Generating predictions...")
     eval_sentences = [f"Aerial photograph of {cn}" for cn in classes_names]
     images_predicted = 0
@@ -99,6 +87,14 @@ def predict(model, processor, eval_images, classes_names, model_scores_file, img
 
 
 def compute_scores(scores_file, model_scores_file, model_basename):
+    """
+    Computes final accuracy scores based on prediction results.
+
+    Args:
+        scores_file (str): Path to the file to store final scores.
+        model_scores_file (str): Path to the file containing prediction scores.
+        model_basename (str): Basename of the model being evaluated.
+    """
     print("Computing final scores...")
     num_examples = 0
     correct_k = [0] * len(K_VALUES)
@@ -125,7 +121,7 @@ def compute_scores(scores_file, model_scores_file, model_basename):
 
 
 def main(args):
-    print("Starting evaluation...")
+    print("Evaluating CLIP: Starting evaluation...")
     print(f"Loading checkpoint: {args.model_pth} and processor: {args.processor}")
 
     model = CLIPWrapper.load_from_checkpoint(args.model_pth)

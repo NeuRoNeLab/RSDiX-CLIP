@@ -338,6 +338,7 @@ class TransformerMapper(nn.Module):
         Returns:
             torch.Tensor: The output tensor after applying the TransformerMapper layers.
         """
+        x = x if len(x.shape) > 1 else x.unsqueeze(0)
         x = self.linear(x).view(x.shape[0], self.clip_length, -1)
         prefix = self.prefix_const.unsqueeze(0).expand(x.shape[0], *self.prefix_const.shape)
         prefix = torch.cat((x, prefix), dim=1)
