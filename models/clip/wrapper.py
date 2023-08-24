@@ -12,7 +12,7 @@ from cosine_annealing_warmup import CosineAnnealingWarmupRestarts
 from torch.optim.lr_scheduler import LinearLR
 
 from utils import CONFIG_DIR, VIT_CONFIG_FILE, IMAGE_FIELD, CAPTION_FIELD, BETAS, \
-    RAW_FIELD_CAPTION
+    RAW_CAPTION_FIELD
 from .model_utils import compute_mse, compute_accuracy, compute_teacher_targets
 from .ema import ExponentialMovingAverage
 
@@ -24,14 +24,52 @@ class CLIPWrapper(l.LightningModule):
 
     _st_model = SentenceTransformer("all-MiniLM-L6-v2")
 
-    def __init__(self, model: str = "openai/clip-vit-base-patch32",
-                 lr: Optional[float] = None, alpha: float = 0.5, ema_decay: float = 0.999,
-                 weight_decay: float = 0.1, start_factor: float = 0.3333333333333333,
-                 end_factor: float = 1.0, total_iters: int = 5, use_warmup: str = "cosine",
-                 warmup_steps: int = 0, eps: float = 1e-08,
+    def __init__(self,
+                 model: str = "openai/clip-vit-base-patch32",
+                 lr: Optional[float] = None,
+                 alpha: float = 0.5,
+                 ema_decay: float = 0.999,
+                 weight_decay: float = 0.1,
+                 start_factor: float = 0.3333333333333333,
+                 end_factor: float = 1.0,
+                 total_iters: int = 5,
+                 use_warmup: str = "cosine",
+                 warmup_steps: int = 0,
+                 eps: float = 1e-08,
                  betas: tuple[float, float] = BETAS,
-                 sinkhorn_lambda: float = 0.1, sinkhorn_iter: int = 4, ii_coeff: float = 1.0, tt_coeff: float = 1.0,
+                 sinkhorn_lambda: float = 0.1,
+                 sinkhorn_iter: int = 4,
+                 ii_coeff: float = 1.0,
+                 tt_coeff: float = 1.0,
                  remove_diag: bool = False):
+        """
+            Initialize a CLIPWrapper instance.
+
+            Parameters:
+                model (str): The pre-trained CLIP model to use. Defaults to "openai/clip-vit-base-patch32".
+                lr (Optional[float]): The learning rate for the optimizer. If not provided, it attempts to use the
+                    learning rate from the model's configuration.
+                alpha (float): Trade-off factor between the contrastive loss and self-distillation loss.
+                    Defaults to 0.5 for equal contributions from both losses.
+                ema_decay (float): Exponential Moving Average (EMA) decay factor for the teacher model. Controls the
+                    adaptation rate of the teacher model.
+                weight_decay (float): Weight decay applied to model parameters during optimization.
+                start_factor (float): Starting factor for the learning rate schedule during linear warm-up.
+                end_factor (float): Ending factor for the learning rate schedule during linear warm-up.
+                total_iters (int): Total number of iterations over which linear warm-up is applied.
+                use_warmup (str): Specifies whether to use warm-up for learning rate scheduling.
+                    Choose between "cosine" or "linear."
+                warmup_steps (int): Number of warm-up steps.
+                eps (float): A small epsilon value added to prevent division by zero when normalizing embeddings.
+                betas (tuple[float, float]): Beta coefficients for the Adam optimizer.
+                    Control exponential moving averages of gradient and squared gradient.
+                sinkhorn_lambda (float): Parameter used in Sinkhorn distance computation for self-distillation.
+                sinkhorn_iter (int): Number of iterations for Sinkhorn distance computation.
+                ii_coeff (float): Coefficient used in computing teacher targets for self-distillation.
+                tt_coeff (float): Coefficient used in computing teacher targets for self-distillation.
+                remove_diag (bool): Flag to determine whether to remove diagonal elements when computing teacher
+                    targets.
+            """
         super().__init__()
 
         if use_warmup != "cosine" and use_warmup != "linear":
@@ -81,18 +119,28 @@ class CLIPWrapper(l.LightningModule):
         self.save_hyperparameters()
 
     def get_embeddings(self, images, text, teacher: bool = False):
-        # Get the embeddings
+        """
+        Get embeddings for images and text.
+
+        Args:
+            images: The input images.
+            text: The input text.
+            teacher (bool): Whether to use teacher model for embeddings.
+
+        Returns:
+            tuple: A tuple containing image and text embeddings.
+        """
         images_embeds = self.encode_image(images=images, teacher=teacher)
         text_embeds = self.encode_text(text=text, teacher=teacher)
 
-        # Normalize them
+        # Normalize embeddings
         images_embeds = images_embeds / images_embeds.norm(p=2, dim=-1, keepdim=True)
         text_embeds = text_embeds / text_embeds.norm(p=2, dim=-1, keepdim=True)
 
         return images_embeds, text_embeds
 
     def training_step(self, batch, batch_idx) -> torch.Tensor:
-        images, text, raw_text = batch[IMAGE_FIELD], batch[CAPTION_FIELD], batch.pop(RAW_FIELD_CAPTION)
+        images, text, raw_text = batch[IMAGE_FIELD], batch[CAPTION_FIELD], batch.pop(RAW_CAPTION_FIELD)
 
         # Update the teacher model
         self.update_teacher()
@@ -138,7 +186,7 @@ class CLIPWrapper(l.LightningModule):
         return loss
 
     def validation_step(self, batch, batch_idx) -> torch.Tensor:
-        images, text, raw_text = batch[IMAGE_FIELD], batch[CAPTION_FIELD], batch.pop(RAW_FIELD_CAPTION)
+        images, text, raw_text = batch[IMAGE_FIELD], batch[CAPTION_FIELD], batch.pop(RAW_CAPTION_FIELD)
         images_embeds, text_embeds = self.get_embeddings(images=images, text=text)
 
         outputs = self.forward(batch)
@@ -155,10 +203,30 @@ class CLIPWrapper(l.LightningModule):
         return outputs.loss
 
     def encode_image(self, images: torch.Tensor, teacher: bool = False) -> torch.FloatTensor:
+        """
+        Encode images and obtain their embeddings.
+
+        Args:
+            images: The input images.
+            teacher (bool): Whether to use teacher model for encoding.
+
+        Returns:
+            torch.FloatTensor: The image embeddings.
+        """
         return self._student.get_image_features(images) if teacher is False else \
             self._teacher.get_image_features(images)
 
     def encode_text(self, text: torch.Tensor, teacher: bool = False) -> torch.FloatTensor:
+        """
+        Encode text and obtain their embeddings.
+
+        Args:
+            text: The input text.
+            teacher (bool): Whether to use teacher model for encoding.
+
+        Returns:
+            torch.FloatTensor: The text embeddings.
+        """
         return self._student.get_text_features(text) if teacher is False else \
             self._teacher.get_text_features(text)
 
@@ -166,6 +234,9 @@ class CLIPWrapper(l.LightningModule):
         return self._student(**inputs, return_loss=return_loss)
 
     def update_teacher(self):
+        """
+        Update the teacher model using Exponential Moving Average (EMA).
+        """
         self._ema_model.update(self._student.parameters())
         self._ema_model.copy_to(self._teacher.parameters())
 
@@ -191,3 +262,29 @@ class CLIPWrapper(l.LightningModule):
                 "scheduler": lr_scheduler
             }
         }
+
+    @property
+    def lr(self) -> float:
+        """
+        Get the learning rate.
+
+        Returns:
+            float: The current learning rate.
+
+        Note:
+            This is necessary in order to use PytorchLightning's Tuner.
+        """
+        return self._lr
+
+    @lr.setter
+    def lr(self, lr: float):
+        """
+        Set the learning rate.
+
+        Args:
+            lr (float): The new learning rate to set.
+
+        Note:
+            This is necessary in order to use PytorchLightning's Tuner.
+        """
+        self._lr = lr

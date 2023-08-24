@@ -1,7 +1,11 @@
+from typing import Final
+
 import torch
 from torchvision import transforms as t
 
 from transformations import RandomSharpness
+from aac_metrics.functional import bleu, rouge_l, meteor, sbert_sim
+
 
 IMAGE_DEFAULT_C = 3
 IMAGE_DEFAULT_W = 224
@@ -33,7 +37,7 @@ DEFAULT_TRANSFORMS = t.RandomApply(torch.nn.ModuleList(
 TRAIN_SPLIT_PERCENTAGE = 80
 VAL_SPLIT_PERCENTAGE = 10
 
-CONFIG_DIR = "models/configs"
+CONFIG_DIR = "models/clip/configs"
 VIT_CONFIG_FILE = "ViT.yaml"
 
 BETAS = (0.9, 0.99)
@@ -41,4 +45,20 @@ BATCH_SIZE = 512
 MINIBATCH_SIZE = 0
 IMAGE_FIELD = "pixel_values"
 CAPTION_FIELD = "input_ids"
-RAW_FIELD_CAPTION = "raw_captions"
+RAW_CAPTION_FIELD = "raw_captions"
+GPT2_CAPTION_TOKENS_FIELD = "gpt2_caption_tokens"
+GPT2_MASK_FIELD = "gpt2_mask"
+METEOR: Final[str] = "meteor"
+ROUGE_L: Final[str] = "rouge_l"
+SBERT_SIM: Final[str] = "sbert_sim"
+BLEU: Final[str] = "bleu_"
+MIN_BLEU: Final[int] = 1
+MAX_BLEU: Final[int] = 4
+ALLOWED_METRICS = [METEOR, SBERT_SIM, ROUGE_L, BLEU, f'{BLEU}1', f'{BLEU}2', f'{BLEU}3', f'{BLEU}4']
+METRICS = {
+    METEOR: meteor,
+    SBERT_SIM: sbert_sim,
+    ROUGE_L: rouge_l,
+    BLEU: bleu
+}
+CLIP_MAX_LENGTH = 77
