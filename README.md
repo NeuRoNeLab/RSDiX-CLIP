@@ -58,7 +58,7 @@ The following datasets were used in the training process:
 1. [The Remote Sensing Image Captioning Dataset (RSICD)](https://github.com/201528014227051/RSICD_optimal)
 2. [UC Merced Land Use Dataset (UCMD)](http://weegee.vision.ucmerced.edu/datasets/landuse.html)
 3. [The Remote Sensing Image-Text Match Dataset (RSITMD)](https://github.com/xiaoyuan1996/AMFMN)
-4. **NAIS**, a custom dataset containing 1533 images and five captions per image. 
+4. A custom dataset containing 1533 images and five captions per image. 
 
 To ensure consistency, all images were resized to 224x224 pixels. The first model utilized image-caption pairs, while the second model employed a single image and a list of five captions.
 
@@ -117,13 +117,6 @@ Initially, the model was first evaluated on each dataset individually and subseq
 | clip-cap-all-datasets-epoch=18-val_loss=1.428-rsitmd-only | BLEU_4    | [0, 1]  | 0.091         |
 | clip-cap-all-datasets-epoch=18-val_loss=1.428-rsitmd-only | ROUGE-L   | [0, 1]  | 0.351         |
 | clip-cap-all-datasets-epoch=18-val_loss=1.428-rsitmd-only | SBERT-SIM | [-1, 1] | 0.600         |
-|                                                           |           |         |               |
-| clip-cap-all-datasets-epoch=18-val_loss=1.428-nais-only   | BLEU_1    | [0, 1]  | 0.182         |
-| clip-cap-all-datasets-epoch=18-val_loss=1.428-nais-only   | BLEU_2    | [0, 1]  | 0.125         |
-| clip-cap-all-datasets-epoch=18-val_loss=1.428-nais-only   | BLEU_3    | [0, 1]  | 0.085         |
-| clip-cap-all-datasets-epoch=18-val_loss=1.428-nais-only   | BLEU_4    | [0, 1]  | 0.055         |
-| clip-cap-all-datasets-epoch=18-val_loss=1.428-nais-only   | ROUGE-L   | [0, 1]  | 0.228         |
-| clip-cap-all-datasets-epoch=18-val_loss=1.428-nais-only   | SBERT-SIM | [-1, 1] | 0.383         |
 |                                                           |           |         |               |
 | clip-cap-all-datasets-epoch=18-val_loss=1.428             | BLEU_1    | [0, 1]  | 0.558         |
 | clip-cap-all-datasets-epoch=18-val_loss=1.428             | BLEU_2    | [0, 1]  | 0.447         |
