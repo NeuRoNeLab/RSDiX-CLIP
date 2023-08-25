@@ -38,7 +38,7 @@ def eval_model(model: CLIPCapWrapper, preprocessor: CLIPProcessor, args) \
     # Initialize metrics dict and start evaluation
     avg_metrics = {metric: 0.0 for metric in args.metrics}
     no_meteor_count = 0
-    ds = get_splits_for_evaluation(args.annotations_files, args.img_dirs)
+    ds = get_splits_for_evaluation(args.annotations_files, args.img_dirs, args.splits)
     progress_bar = tqdm(range(0, len(ds)), desc=f"Evaluating model, current metrics: {avg_metrics}")
     for i in progress_bar:
 
@@ -126,5 +126,7 @@ if __name__ == "__main__":
     parser.add_argument("--img_dirs", nargs='*',
                         default=["./data/RSICD/RSICD_images", "./data/UCMD/UCMD_images", "./data/RSITMD/RSITMD_images",
                                  "./data/NAIS/NAIS_images"])
+    parser.add_argument("--splits", nargs='*',
+                        default=["val", "test", "test", "test"])
 
     main(parser.parse_args())
