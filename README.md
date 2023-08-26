@@ -52,7 +52,7 @@ This README provides a concise overview of the training and evaluation procedure
 - [Acknowledgements and references](#acknowledgements-and-references)
 
 # Training details 
-Both models were training using [Lightning](https://lightning.ai/) and [Pytorch](https://pytorch.org/) on GPU. More specifically, the models were training on an **NVIDIA Geforce RTX 4090** with Tensor Cores on `cuda 11.8`. The training process involved fine-tuning the models using advanced techniques like **grid search** and **Bayesian Optimization**. 
+Both models were training using [Lightning](https://lightning.ai/) and [Pytorch](https://pytorch.org/) on GPU. More specifically, the models were training on an **NVIDIA Geforce RTX 4090** with Tensor Cores on `cuda 11.8`. The training process involved fine-tuning the models with remote sensing image and text data, using advanced techniques like **Bayesian Optimization** for hyperparameter tuning. 
 ## Datasets
 The following datasets were used in the training process: 
 1. [The Remote Sensing Image Captioning Dataset (RSICD)](https://github.com/201528014227051/RSICD_optimal)
