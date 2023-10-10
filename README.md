@@ -21,8 +21,8 @@
 # Remote Sensing Captioning Transformer
 Welcome to the Remote Sensing Captioning Transformer project! This repository hosts a Transformer-based solution for generating captions for remote sensing images.
 Specifically, this project utilizes two models: 
-1. **RS-CLIP**, a fine-tuned [CLIP transformer model](https://huggingface.co/transformers/model_doc/clip.html#transformers.CLIPModel)
-2. **RS-CLIPCap**, A fine-tuned CLIP-based captioning model similar to CLIPCap[^4] that integrates the fine-tuned CLIP transformer model's vision encoder. 
+1. **RSD-CLIP**, a fine-tuned [CLIP transformer model](https://huggingface.co/transformers/model_doc/clip.html#transformers.CLIPModel)
+2. **RSD-CLIPCap**, A fine-tuned CLIP-based captioning model similar to CLIPCap[^4] that integrates the fine-tuned CLIP transformer model's vision encoder. 
 
 This README provides a concise overview of the training and evaluation procedures, along with detailed instructions for installing project prerequisites and executing the embedding extraction script, training script, and evaluation/inference scripts.
 
@@ -31,8 +31,8 @@ This README provides a concise overview of the training and evaluation procedure
   - [Datasets](#datasets)
   - [Augmentation Strategy](#augmentation-strategy)
   - [Evaluation Results](#evaluation-results)
-      - [CLIP Evaluation Results](#clip-evaluation-results)
-      - [CLIPCap Evaluation Results](#clipcap-evaluation-results)
+      - [RSD-CLIP Evaluation Results](#rsd-clip-evaluation-results)
+      - [RSD-CLIPCap Evaluation Results](#rsd-clipcap-evaluation-results)
 - [Installation Guide](#installation-guide)
   - [Installation Python](#installing-python)
   - [Creating the Virtual Environment](#creating-the-virtual-environment)
@@ -40,15 +40,15 @@ This README provides a concise overview of the training and evaluation procedure
   - [Cloning the Repository](#cloning-the-repository)
 - [Models, weights and additional inference data](#models-weights-and-additional-inference-data)
 - [Training and fine-tuning](#training-and-fine-tuning)
-  - [Training and fine-tuning RS-CLIP](#training-and-fine-tuning-rs-clip)
-  - [Training and fine-tuning RS-CLIPCap](#training-and-fine-tuning-rs-clipcap)
+  - [Training and fine-tuning RSD-CLIP](#training-and-fine-tuning-rsd-clip)
+  - [Training and fine-tuning RSD-CLIPCap](#training-and-fine-tuning-rsd-clipcap)
   - [Running Bayesian Optimization](#running-bayesian-optimization)
 - [Evaluating](#evaluating)
-  - [Evaluating RS-CLIP](#evaluating-rs-clip)
-  - [Evaluating RS-CLIPCap](#evaluating-rs-clipcap)
+  - [Evaluating RSD-CLIP](#evaluating-rsd-clip)
+  - [Evaluating RSD-CLIPCap](#evaluating-rsd-clipcap)
 - [Inference](#inference)
-  - [Running the RS-CLIP Remote Sensing Inference Script](#running-the-rs-clip-remote-sensing-inference-script)
-  - [Running the RS-CLIPCap Remote Sensing Inference Script](#running-the-rs-clipcap-remote-sensing-inference-script) 
+  - [Running the RSD-CLIP Remote Sensing Inference Script](#running-the-rsd-clip-remote-sensing-inference-script)
+  - [Running the RSD-CLIPCap Remote Sensing Inference Script](#running-the-rsd-clipcap-remote-sensing-inference-script) 
 - [Acknowledgements and references](#acknowledgements-and-references)
 
 # Training details 
@@ -68,15 +68,15 @@ To enhance the generalization of our models and mitigate the risk of overfitting
 
 We employed image augmentation techniques for both models, applying transformations directly from PyTorch's Torchvision package . Specifically, we applied: **RandomRotation**, **RandomVerticalFlip**, **RandomHorizontalFlip**, **ColorJitter**, **RandomResizedCrop** and a customized implementation of **AdjustSharpness**.
 
-On the other hand, text augmentation was exclusively applied during RS-CLIP fine-tuning through a process called backtranslation, utilizing  the [Marian MT](https://huggingface.co/transformers/model_doc/marian.html) family of translation models, specifically the [ROMANCE models from Helsinki-NLP](https://huggingface.co/Helsinki-NLP/opus-mt-en-ROMANCE). Each augmentation corresponded to backtranslation through a different pair of language models.
+On the other hand, text augmentation was exclusively applied during RSD-CLIP fine-tuning through a process called backtranslation, utilizing  the [Marian MT](https://huggingface.co/transformers/model_doc/marian.html) family of translation models, specifically the [ROMANCE models from Helsinki-NLP](https://huggingface.co/Helsinki-NLP/opus-mt-en-ROMANCE). Each augmentation corresponded to backtranslation through a different pair of language models.
 
 All data augmentation operations were applied probabilistically using a binomial distribution.
 
 ## Evaluation Results
 
-### CLIP Evaluation Results 
+### RSD-CLIP Evaluation Results 
 
-For evaluating the CLIP model we used the same strategy as the arampacha team[^2],  which is detailed as follows:
+For evaluating RSD-CLIP we used the same strategy as the arampacha team[^2],  which is detailed as follows:
 
 We used a subset of the RSICD test set with file names that specified that the image belonged to one of 30 image categories. Evaluation was done by comparing the CLIP encoding of each image with CLIP encodings of each of 30 synthetic caption sentences of the form `"An aerial photograph of {category}"`. Categories corresponding to captions with the top k scores (for k=1, 3, 5, and 10) were compared with the "label" category indicated by the image name. The score is 1 if the top-k predicted classes contained the label category (for k=1, 3, 5, and 10), otherwise the score is 0. The scores are averaged over the entire set of evaluation images and reported for various values of k, as shown below.
 
@@ -84,10 +84,10 @@ We used a subset of the RSICD test set with file names that specified that the i
 | Model-name        | k=1       | k=3       | k=5       | k=10      |
 |-------------------|-----------|-----------|-----------|-----------|
 | CLIP-rsicd[^2]          | 0.883 | 0.968 | 0.982 | 0.998|
-| RS-CLIP           | **0.908** | **0.985** | **0.993** | **0.999** |
+| RSD-CLIP           | **0.908** | **0.985** | **0.993** | **0.999** |
 
-### CLIPCap Evaluation Results
-The CLIPCap model was evaluated by using the following metrics made available by [aac-metrics](https://github.com/Labbeti/aac-metrics):
+### RSD-CLIPCap Evaluation Results
+The RSD-CLIPCap model was evaluated by using the following metrics made available by [aac-metrics](https://github.com/Labbeti/aac-metrics):
 
 | Metric    | Origin              | Range   | Short description                                 |
 |:----------|:--------------------|:--------|:--------------------------------------------------|
@@ -99,33 +99,33 @@ Initially, the model was first evaluated on each dataset individually and subseq
 
 | Model-name  | Metric    | Range   | Average Value | Evaluation Dataset |
 |:------------|:----------|:--------|:--------------|:-------------------|
-| RS-CLIPCap  | BLEU_1    | [0, 1]  | 0.628         | RSICD |
-| RS-CLIPCap  | BLEU_2    | [0, 1]  | 0.527         | RSICD |
-| RS-CLIPCap  | BLEU_3    | [0, 1]  | 0.452         | RSICD |
-| RS-CLIPCap  | BLEU_4    | [0, 1]  | 0.375         | RSICD |
-| RS-CLIPCap  | ROUGE-L   | [0, 1]  | 0.590         | RSICD |
-| RS-CLIPCap  | SBERT-SIM | [-1, 1] | 0.794         | RSICD |
+| RSD-CLIPCap  | BLEU_1    | [0, 1]  | 0.628         | RSICD |
+| RSD-CLIPCap  | BLEU_2    | [0, 1]  | 0.527         | RSICD |
+| RSD-CLIPCap  | BLEU_3    | [0, 1]  | 0.452         | RSICD |
+| RSD-CLIPCap  | BLEU_4    | [0, 1]  | 0.375         | RSICD |
+| RSD-CLIPCap  | ROUGE-L   | [0, 1]  | 0.590         | RSICD |
+| RSD-CLIPCap  | SBERT-SIM | [-1, 1] | 0.794         | RSICD |
 |             |           |         |               |       |
-| RS-CLIPCap  | BLEU_1    | [0, 1]  | 0.767         | UCMD |
-| RS-CLIPCap  | BLEU_2    | [0, 1]  | 0.731         | UCMD|
-| RS-CLIPCap  | BLEU_3    | [0, 1]  | 0.688         | UCMD|
-| RS-CLIPCap  | BLEU_4    | [0, 1]  | 0.629         | UCMD|
-| RS-CLIPCap  | ROUGE-L   | [0, 1]  | 0.750         | UCMD|
-| RS-CLIPCap  | SBERT-SIM | [-1, 1] | 0.809         | UCMD|
+| RSD-CLIPCap  | BLEU_1    | [0, 1]  | 0.767         | UCMD |
+| RSD-CLIPCap  | BLEU_2    | [0, 1]  | 0.731         | UCMD|
+| RSD-CLIPCap  | BLEU_3    | [0, 1]  | 0.688         | UCMD|
+| RSD-CLIPCap  | BLEU_4    | [0, 1]  | 0.629         | UCMD|
+| RSD-CLIPCap  | ROUGE-L   | [0, 1]  | 0.750         | UCMD|
+| RSD-CLIPCap  | SBERT-SIM | [-1, 1] | 0.809         | UCMD|
 |             |           |         |               |     |
-| RS-CLIPCap  | BLEU_1    | [0, 1]  | 0.451         | RSITMD|
-| RS-CLIPCap  | BLEU_2    | [0, 1]  | 0.257         | RSITMD|
-| RS-CLIPCap  | BLEU_3    | [0, 1]  | 0.147         | RSITMD|
-| RS-CLIPCap  | BLEU_4    | [0, 1]  | 0.091         | RSITMD|
-| RS-CLIPCap  | ROUGE-L   | [0, 1]  | 0.351         | RSITMD|
-| RS-CLIPCap  | SBERT-SIM | [-1, 1] | 0.600         | RSITMD|
+| RSD-CLIPCap  | BLEU_1    | [0, 1]  | 0.451         | RSITMD|
+| RSD-CLIPCap  | BLEU_2    | [0, 1]  | 0.257         | RSITMD|
+| RSD-CLIPCap  | BLEU_3    | [0, 1]  | 0.147         | RSITMD|
+| RSD-CLIPCap  | BLEU_4    | [0, 1]  | 0.091         | RSITMD|
+| RSD-CLIPCap  | ROUGE-L   | [0, 1]  | 0.351         | RSITMD|
+| RSD-CLIPCap  | SBERT-SIM | [-1, 1] | 0.600         | RSITMD|
 |             |           |         |               ||
-| RS-CLIPCap  | BLEU_1    | [0, 1]  | 0.558         | Combined Dataset|
-| RS-CLIPCap  | BLEU_2    | [0, 1]  | 0.447         | Combined Dataset|
-| RS-CLIPCap  | BLEU_3    | [0, 1]  | 0.369         | Combined Dataset|
-| RS-CLIPCap  | BLEU_4    | [0, 1]  | 0.301         | Combined Dataset|
-| RS-CLIPCap  | ROUGE-L   | [0, 1]  | 0.513         | Combined Dataset|
-| RS-CLIPCap  | SBERT-SIM | [-1, 1] | 0.707         | Combined Dataset|
+| RSD-CLIPCap  | BLEU_1    | [0, 1]  | 0.558         | Combined Dataset|
+| RSD-CLIPCap  | BLEU_2    | [0, 1]  | 0.447         | Combined Dataset|
+| RSD-CLIPCap  | BLEU_3    | [0, 1]  | 0.369         | Combined Dataset|
+| RSD-CLIPCap  | BLEU_4    | [0, 1]  | 0.301         | Combined Dataset|
+| RSD-CLIPCap  | ROUGE-L   | [0, 1]  | 0.513         | Combined Dataset|
+| RSD-CLIPCap  | SBERT-SIM | [-1, 1] | 0.707         | Combined Dataset|
 
 You can access the trained model weights and their corresponding configurations at the [Models, weights and additional inference data](#models-weights-and-additional-inference-data) section.
 
@@ -170,16 +170,16 @@ Trained model weights and additional inference data/results can be found at the 
 
 Specifically:
    
-   - The `RS-CLIP-best-model` directory contains the weights and configuration file to load the RS-CLIP model.
+   - The `RSD-CLIP-best-model` directory contains the weights and configuration file to load the RSD-CLIP model.
 
-   - The `RS-CLIPCap-best-model` contains the weights and configuration file to load the RS-CLIPCap model. It also contains the `_inferenceimages` directory, which holds the captioning inference results in JSON format.
+   - The `RSD-CLIPCap-best-model` contains the weights and configuration file to load the RSD-CLIPCap model. It also contains the `_inferenceimages` directory, which holds the captioning inference results in JSON format.
 
    - The `RSICD-test-set-file` directory contains the RSICD annotations file containing only the images of the test set of RSICD.
 
 # Training and fine-tuning 
 To train and finetune the models, please check out the sections below. 
-## Training and fine-tuning RS-CLIP
-To train and finetune RS-CLIP, follow the instructions below: 
+## Training and fine-tuning RSD-CLIP
+To train and finetune RSD-CLIP, follow the instructions below: 
 
 1. Make sure you have **activated the virtual environment where you installed the project's requirements**. If activated, your terminal, assuming you are using **bash**, should look like the following: ``(name-of-your-virtual-environment) user@user path``
 
@@ -242,8 +242,8 @@ To train and finetune RS-CLIP, follow the instructions below:
   python train_finetune_clip.py fit --config clip_config.yaml --data.img_transform torchvision.transforms.Pad
 ```
 6. For major information, please refer to [Configure hyperparameters from the CLI](https://lightning.ai/docs/pytorch/stable/cli/lightning_cli_advanced.html).
-## Training and fine-tuning RS-CLIPCap 
-To train and finetune RS-CLIPCap, follow the instructions below: 
+## Training and fine-tuning RSD-CLIPCap 
+To train and finetune RSD-CLIPCap, follow the instructions below: 
 
 1. Make sure you have **activated the virtual environment where you installed the project's requirements**. If activated, your terminal, assuming you are using **bash**, should look like the following: ``(name-of-your-virtual-environment) user@user path``
 
@@ -337,8 +337,8 @@ To train and finetune one of the two models leveraging bayesian optimization, fo
 
 # Evaluating
 To evaluate the models, please check out the sections below. 
-## Evaluating RS-CLIP
-To evaluate the RS-CLIP model, please:
+## Evaluating RSD-CLIP
+To evaluate the RSD-CLIP model, please:
 
 1. Make sure you have **activated the virtual environment where you installed the project's requirements**. If activated, your terminal, assuming you are using **bash**, should look like the following: ``(name-of-your-virtual-environment) user@user path``
 
@@ -350,8 +350,8 @@ To evaluate the RS-CLIP model, please:
     - `--annotations_file (str)`: Annotations file of the dataset to evaluate the model on.
     - `--img_dir (str)`: Directory containing the images of dataset to evaluate the model on.
 
-## Evaluating RS-CLIPCap
-To evaluate the RS-CLIPCap model, please:
+## Evaluating RSD-CLIPCap
+To evaluate the RSD-CLIPCap model, please:
 
 1. Make sure you have **activated the virtual environment where you installed the project's requirements**. If activated, your terminal, assuming you are using **bash**, should look like the following: ``(name-of-your-virtual-environment) user@user path``
 
@@ -369,7 +369,7 @@ To evaluate the RS-CLIPCap model, please:
 
 # Inference
 
-## Running the RS-CLIP Remote Sensing Inference Script
+## Running the RSD-CLIP Remote Sensing Inference Script
 To extract image embeddings using the CLIP Remote Sensing model, follow the instructions below:
 
 1. Make sure you have **activated the virtual environment where you installed the project's requirements**. If activated, your terminal, assuming you are using **bash**, should look like the following: ``(name-of-your-virtual-environment) user@user path``
@@ -386,8 +386,8 @@ To extract image embeddings using the CLIP Remote Sensing model, follow the inst
 
     - `--processor (str)`: Specify the CLIPProcessor model version to use for preprocessing data. Defaults to "openai/clip-vit-base-patch32".
 
-## Running the RS-CLIPCap Remote Sensing Inference Script
-To generate captions using the RS-CLIPCap trained model, follow the instructions below:
+## Running the RSD-CLIPCap Remote Sensing Inference Script
+To generate captions using the RSD-CLIPCap trained model, follow the instructions below:
 
 1. Make sure you have **activated the virtual environment where you installed the project's requirements**. If activated, your terminal, assuming you are using **bash**, should look like the following: ``(name-of-your-virtual-environment) user@user path``
 
