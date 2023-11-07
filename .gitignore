@@ -7,8 +7,10 @@
 
 /config.yaml
 /clipcap_config.yaml
-/clipcap_config.yaml
+/clip_config.yaml
+/_inferenceimages
 /eval_results
+/*.pt
 /results.txt
 /$HOME
 /old_bak
