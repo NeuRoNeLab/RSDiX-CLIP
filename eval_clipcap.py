@@ -15,12 +15,14 @@ from utils import METEOR, SBERT_SIM, ROUGE_L, BLEU, MAX_BLEU, MIN_BLEU, \
 from evaluation.utils import get_model_basename, get_splits_for_evaluation
 
 
-def eval_model(model: CLIPCapWrapper, preprocessor: CLIPProcessor, args) \
+# TODO: Re-think the process
+def eval_model(ds: CaptioningDataset, model: CLIPCapWrapper, preprocessor: CLIPProcessor, args) \
         -> Dict[str, float]:
     """
     Evaluates the performance of the CLIPCapWrapper on a given dataset.
 
     Args:
+        ds (CaptioningDataset): The CaptioningDataset to evaluate the model upon.
         model (CLIPCapWrapper): The CLIPCapWrapper to be evaluated.
         preprocessor (CLIPProcessor): The CLIPProcessor to preprocess the image with.
         args (argparse.Namespace): The command-line arguments containing the following:
@@ -92,7 +94,14 @@ def main(args):
 
     model = CLIPCapWrapper.load_from_checkpoint(args.model_pth)
     preprocessor = CLIPProcessor.from_pretrained(args.processor)
-    ds = CaptioningDataset(annotations_file=args.annotations_file, img_dir=args.imgs_dir, augment_image_data=False,
+
+    if len(args.annotations_files) == 1:
+        args.annotations_files = args.annotations_files[0]
+
+    if len(args.img_dirs) == 1:
+        args.img_dirs = args.img_dirs[0]
+
+    ds = CaptioningDataset(annotations_file=args.annotations_files, img_dir=args.img_dirs, augment_image_data=False,
                            augment_text_data=False)
 
     avg_metrics = eval_model(ds=ds, model=model, preprocessor=preprocessor, args=args)
