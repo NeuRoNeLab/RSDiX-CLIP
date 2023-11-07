@@ -20,8 +20,8 @@ def get_splits(n_instances: int, train_split_percentage: float, val_split_percen
     """
     train_split = int(n_instances * train_split_percentage / 100)
     remaining_split = n_instances - train_split
-    test_split = remaining_split - int(n_instances * val_split_percentage / 100)
-    val_split = remaining_split - test_split
+    val_split = remaining_split - int(n_instances * val_split_percentage / 100)
+    test_split = remaining_split - val_split
 
     # If no test set is required, then test_split is just remainder, that we can add to the train
     if train_split_percentage + val_split_percentage >= 100.0:
@@ -117,3 +117,48 @@ def separate_rsicd_test_images(annotations_file: str, test_output_file: str = "d
 
     with open(test_output_file, "w") as json_file:
         json.dump(test_images, json_file)
+
+
+def separate_nwpu_test_images(annotations_file: str, test_output_file: str = "dataset_nwpu_test.json"):
+    """
+        Separate test images from NWPU-Captions dataset and create a separate JSON file for test images.
+
+        Args:
+            annotations_file (str): Path to the JSON annotations file.
+            test_output_file (str): Name of the output JSON file for test images.
+    """
+    data = []
+    with open(annotations_file, encoding="utf8") as json_file:
+        data = json.load(json_file)
+
+    train_data = {"images": [], "dataset": "NWPU-Captions"}
+    test_data = {"images": [], "dataset": "NWPU-Captions"}
+
+    # the dataset is structure as follows:
+    # category:
+    #   [
+    #       "filename": "category_1",
+    #       "split": "train",
+    #       "raw": "raw sentence 1",
+    #       "raw_1": "raw sentence 2",
+    #       ...
+    #   ]
+    for category in data.keys():
+        for category_row in data[category]:
+            row = {
+                "filename": category_row["filename"],
+                "imgid": category_row["imgid"],
+                "split": category_row["split"],
+                "sentences": [{"raw": category_row[raw_key]} for raw_key in category_row.keys() if raw_key.startswith("raw")]
+            }
+            if row["split"] == "test":
+                test_data["images"].append(row)
+            else:
+                train_data["images"].append(row)
+
+        # overwrite existing dataset
+    with open(annotations_file, "w") as json_file:
+        json.dump(train_data, json_file)
+
+    with open(test_output_file, "w") as json_file:
+        json.dump(test_data, json_file)
