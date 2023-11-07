@@ -13,16 +13,16 @@ from models.clipcap import generate_caption
 from utils import METEOR, SBERT_SIM, ROUGE_L, BLEU, MAX_BLEU, MIN_BLEU, \
     IMAGE_FIELD, CLIP_MAX_LENGTH, RAW_CAPTION_FIELD
 from evaluation.utils import get_model_basename, get_splits_for_evaluation
+from torch.utils.data import ConcatDataset
 
 
 # TODO: Re-think the process
-def eval_model(ds: CaptioningDataset, model: CLIPCapWrapper, preprocessor: CLIPProcessor, args) \
+def eval_model(model: CLIPCapWrapper, preprocessor: CLIPProcessor, args) \
         -> Dict[str, float]:
     """
     Evaluates the performance of the CLIPCapWrapper on a given dataset.
 
     Args:
-        ds (CaptioningDataset): The CaptioningDataset to evaluate the model upon.
         model (CLIPCapWrapper): The CLIPCapWrapper to be evaluated.
         preprocessor (CLIPProcessor): The CLIPProcessor to preprocess the image with.
         args (argparse.Namespace): The command-line arguments containing the following:
@@ -37,10 +37,21 @@ def eval_model(ds: CaptioningDataset, model: CLIPCapWrapper, preprocessor: CLIPP
     # Set global seed
     seed_everything(args.seed)
 
+    captioning_ds = []
+    ds = None
+    # If use_datamodule is False, then create an evaluation test using the given files,
+    # otherwise get the test dataloader with the current seed
+    if args.use_datamodule is False:
+        for i in range(len(args.annotations_files)):
+            captioning_ds.append(CaptioningDataset(annotations_file=args.annotations_files[i],
+                                                   img_dir=args.img_dirs[i]))
+        ds = ConcatDataset(captioning_ds)
+    else:
+        ds = get_splits_for_evaluation(args.annotations_files, args.img_dirs, args.splits)
+
     # Initialize metrics dict and start evaluation
     avg_metrics = {metric: 0.0 for metric in args.metrics}
     no_meteor_count = 0
-    ds = get_splits_for_evaluation(args.annotations_files, args.img_dirs, args.splits)
     progress_bar = tqdm(range(0, len(ds)), desc=f"Evaluating model, current metrics: {avg_metrics}")
     for i in progress_bar:
 
@@ -95,16 +106,7 @@ def main(args):
     model = CLIPCapWrapper.load_from_checkpoint(args.model_pth)
     preprocessor = CLIPProcessor.from_pretrained(args.processor)
 
-    if len(args.annotations_files) == 1:
-        args.annotations_files = args.annotations_files[0]
-
-    if len(args.img_dirs) == 1:
-        args.img_dirs = args.img_dirs[0]
-
-    ds = CaptioningDataset(annotations_file=args.annotations_files, img_dir=args.img_dirs, augment_image_data=False,
-                           augment_text_data=False)
-
-    avg_metrics = eval_model(ds=ds, model=model, preprocessor=preprocessor, args=args)
+    avg_metrics = eval_model(model=model, preprocessor=preprocessor, args=args)
     metrics_str = ""
 
     for metric, value in avg_metrics.items():
@@ -126,12 +128,13 @@ if __name__ == "__main__":
     parser.add_argument("--processor", type=str, default="openai/clip-vit-base-patch32",
                         help="Processor from CLIPProcessor.from_pretrained to preprocess data")
     parser.add_argument("--use_beam_search", type=bool, default=False)
-    parser.add_argument('--metrics', nargs='*',
+    parser.add_argument("--metrics", nargs='*',
                         default=[ROUGE_L, SBERT_SIM, f'{BLEU}1', f'{BLEU}2', f'{BLEU}3', f'{BLEU}4'],
                         help='the metrics to use during evaluation')
+    parser.add_argument("--use_datamodule", type=bool, default=True)
     parser.add_argument("--annotations_files", nargs='*',
-                        default=["./data/dataset_rsicd.json", "./data/dataset_ucmd.json", "./data/dataset_rsitmd.json",
-                                 "./data/dataset_nais.json"])
+                        default=["./data/RSICD/dataset_rsicd.json", "./data/UCMD/dataset_ucmd.json",
+                                 "./data/RSITMD/dataset_rsitmd.json", "./data/NAIS/dataset_nais.json"])
     parser.add_argument("--img_dirs", nargs='*',
                         default=["./data/RSICD/RSICD_images", "./data/UCMD/UCMD_images", "./data/RSITMD/RSITMD_images",
                                  "./data/NAIS/NAIS_images"])
