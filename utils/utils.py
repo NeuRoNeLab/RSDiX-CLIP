@@ -18,6 +18,10 @@ def get_splits(n_instances: int, train_split_percentage: float, val_split_percen
     Returns:
         Tuple[int, int, int]: Number of instances for training, validation, and test splits.
     """
+
+    if train_split_percentage == 0 and val_split_percentage == 0:
+        return 0, 0, n_instances
+
     train_split = int(n_instances * train_split_percentage / 100)
     remaining_split = n_instances - train_split
     val_split = remaining_split - int(n_instances * val_split_percentage / 100)

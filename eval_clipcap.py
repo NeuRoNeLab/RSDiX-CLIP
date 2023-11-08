@@ -7,16 +7,13 @@ from lightning import seed_everything
 from tqdm import tqdm
 from transformers import CLIPProcessor
 
-from datasets import CaptioningDataset
+from evaluation.utils import get_model_basename, get_splits_for_evaluation
 from models import CLIPCapWrapper
 from models.clipcap import generate_caption
 from utils import METEOR, SBERT_SIM, ROUGE_L, BLEU, MAX_BLEU, MIN_BLEU, \
     IMAGE_FIELD, CLIP_MAX_LENGTH, RAW_CAPTION_FIELD
-from evaluation.utils import get_model_basename, get_splits_for_evaluation
-from torch.utils.data import ConcatDataset
 
 
-# TODO: Re-think the process
 def eval_model(model: CLIPCapWrapper, preprocessor: CLIPProcessor, args) \
         -> Dict[str, float]:
     """
@@ -37,24 +34,13 @@ def eval_model(model: CLIPCapWrapper, preprocessor: CLIPProcessor, args) \
     # Set global seed
     seed_everything(args.seed)
 
-    captioning_ds = []
-    ds = None
-    # If use_datamodule is False, then create an evaluation test using the given files,
-    # otherwise get the test dataloader with the current seed
-    if args.use_datamodule is False:
-        for i in range(len(args.annotations_files)):
-            captioning_ds.append(CaptioningDataset(annotations_file=args.annotations_files[i],
-                                                   img_dir=args.img_dirs[i]))
-        ds = ConcatDataset(captioning_ds)
-    else:
-        ds = get_splits_for_evaluation(args.annotations_files, args.img_dirs, args.splits)
+    ds = get_splits_for_evaluation(args.annotations_files, args.img_dirs, args.splits, not args.no_splits)
 
     # Initialize metrics dict and start evaluation
     avg_metrics = {metric: 0.0 for metric in args.metrics}
     no_meteor_count = 0
     progress_bar = tqdm(range(0, len(ds)), desc=f"Evaluating model, current metrics: {avg_metrics}")
     for i in progress_bar:
-
         img = preprocessor(images=ds[i][IMAGE_FIELD], truncation=True, padding="max_length", max_length=CLIP_MAX_LENGTH,
                            return_tensors="pt")[IMAGE_FIELD].to(model.device)
         reference_captions = ds[i][RAW_CAPTION_FIELD]
@@ -74,10 +60,10 @@ def eval_model(model: CLIPCapWrapper, preprocessor: CLIPProcessor, args) \
                 avg_metrics[METEOR] = avg_metrics[METEOR] + 1 / (i + 1 - no_meteor_count) * (
                             value - avg_metrics[METEOR])
             except ValueError as e:
+                no_meteor_count += 1
                 print(f"Meteor could not be computed due to error {e.with_traceback(None)} "
                       f"on the couple: ({preds}, {reference_captions}). "
                       f"Increasing the no_meteor_count to {no_meteor_count}")
-                no_meteor_count += 1
 
         if SBERT_SIM in avg_metrics:
             value, _ = sbert_sim(candidates=preds, mult_references=reference_captions)
@@ -101,6 +87,10 @@ def eval_model(model: CLIPCapWrapper, preprocessor: CLIPProcessor, args) \
 
 def main(args):
     print("Evaluating CLIP-CAP: Starting evaluation...")
+
+    if args.no_splits is False and len(args.splits) != len(args.annotations_files):
+        raise Exception("The number of splits must match the number of annotations files")
+
     print(f"Loading checkpoint: {args.model_pth} and processor: {args.processor}")
 
     model = CLIPCapWrapper.load_from_checkpoint(args.model_pth)
@@ -127,11 +117,12 @@ if __name__ == "__main__":
     parser.add_argument("--model_pth", type=str, help="Path of the model to evaluate", required=True)
     parser.add_argument("--processor", type=str, default="openai/clip-vit-base-patch32",
                         help="Processor from CLIPProcessor.from_pretrained to preprocess data")
-    parser.add_argument("--use_beam_search", type=bool, default=False)
+    parser.add_argument("--use_beam_search", default=False, action="store_true")
     parser.add_argument("--metrics", nargs='*',
-                        default=[ROUGE_L, SBERT_SIM, f'{BLEU}1', f'{BLEU}2', f'{BLEU}3', f'{BLEU}4'],
+                        default=[METEOR, ROUGE_L, SBERT_SIM, f'{BLEU}1', f'{BLEU}2', f'{BLEU}3', f'{BLEU}4'],
                         help='the metrics to use during evaluation')
-    parser.add_argument("--use_datamodule", type=bool, default=True)
+    parser.add_argument("--no_splits", default=False, action="store_true")
+    parser.add_argument("--export_captions", default=False, action="store_true")
     parser.add_argument("--annotations_files", nargs='*',
                         default=["./data/RSICD/dataset_rsicd.json", "./data/UCMD/dataset_ucmd.json",
                                  "./data/RSITMD/dataset_rsitmd.json", "./data/NAIS/dataset_nais.json"])

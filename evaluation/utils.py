@@ -67,7 +67,7 @@ def get_split_images(ds, ds_indices, sets):
 
 
 def get_splits_for_evaluation(annotations_files: Union[str, List[str]], img_dirs: Union[str, List[str]],
-                              splits: Union[str, List[str]]):
+                              splits: Union[str, List[str]], use_splits: bool):
     """
     Get data splits for evaluation based on annotations files, image directories, and specified splits.
 
@@ -75,26 +75,33 @@ def get_splits_for_evaluation(annotations_files: Union[str, List[str]], img_dirs
         annotations_files (Union[str, List[str]]): Paths to annotations files.
         img_dirs (Union[str, List[str]]): Paths to image directories.
         splits (Union[str, List[str]]): Splits to retrieve data for (e.g., "val" or "test").
+        use_splits (bool): Whether to use the splits or not.
 
     Returns:
         List[dict]: List of sets containing image and caption data for evaluation.
     """
-    datamodule = CaptioningDataModule(annotations_files=annotations_files, img_dirs=img_dirs)
+    datamodule = CaptioningDataModule(annotations_files=annotations_files, img_dirs=img_dirs) if use_splits else \
+        CaptioningDataModule(annotations_files=annotations_files, img_dirs=img_dirs, train_split_percentage=0,
+                             val_split_percentage=0)  # load everything into the test dataloader if use_splits is False
+
     dataloaders = []
-    if isinstance(splits, list):
+    if use_splits and isinstance(splits, list):
         if "val" in splits:
             datamodule.setup("fit")
             dataloaders.append(datamodule.val_dataloader())
         if "test" in splits:
             datamodule.setup("test")
             dataloaders.append(datamodule.test_dataloader())
-    else:
+    elif use_splits:
         if splits == "val":
             datamodule.setup("fit")
             dataloaders.append(datamodule.val_dataloader())
         else:
             datamodule.setup("test")
             dataloaders.append(datamodule.test_dataloader())
+    else:
+        datamodule.setup("test")
+        dataloaders = [datamodule.test_dataloader()]
 
     if isinstance(annotations_files, list):
         datasets = [CaptioningDataset(annotations_file=annotations_files[i], img_dir=img_dirs[i])
@@ -103,13 +110,13 @@ def get_splits_for_evaluation(annotations_files: Union[str, List[str]], img_dirs
         datasets = [CaptioningDataset(annotations_file=annotations_files, img_dir=img_dirs)]
 
     datasets_indices = []
-    if isinstance(splits, list):
+    if use_splits and isinstance(splits, list):
         for idx, split in enumerate(splits):
             dataloader_idx = 0 if split == "val" else 1
             datasets_indices.append(dataloaders[dataloader_idx].dataset.datasets[idx].indices)
     else:
-        dataloader_idx = 0 if splits == "val" else 1
-        datasets_indices.append(dataloaders[dataloader_idx].dataset.indices)
+        dataloader_idx = 0 if use_splits is False or splits == "val" else 1
+        datasets_indices.append(dataloaders[dataloader_idx].dataset.datasets[0].indices)
 
     val_sets = []
 

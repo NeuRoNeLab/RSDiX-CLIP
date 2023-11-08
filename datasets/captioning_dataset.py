@@ -179,7 +179,7 @@ class CaptioningDataModule(l.LightningDataModule):
         super().__init__()
 
         # check if type is the same, can't have str and list
-        if isinstance(annotations_files, type(img_dirs)):
+        if type(annotations_files) is not type(img_dirs):
             raise Exception(f"annotations_files type '{type(annotations_files)}' is not equal to img_dirs' "
                             f"type {type(img_dirs)}.")
 
