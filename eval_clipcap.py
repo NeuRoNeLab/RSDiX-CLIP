@@ -50,7 +50,10 @@ def eval_model(model: CLIPCapWrapper, preprocessor: CLIPProcessor, args) \
     avg_metrics = {metric: 0.0 for metric in args.metrics}
     no_meteor_count = 0
     captions = []
-    progress_bar = tqdm(range(0, len(ds)), desc=f"Evaluating model, current metrics: {avg_metrics}")
+
+    progress_bar = tqdm(range(0, len(ds)),
+                        desc=f"Evaluating model, current metrics: {avg_metrics}" if not args.export_captions
+                        else "Evaluating model, exporting captions")
     for i in progress_bar:
         img = preprocessor(images=ds[i][IMAGE_FIELD], truncation=True, padding="max_length", max_length=CLIP_MAX_LENGTH,
                            return_tensors="pt")[IMAGE_FIELD].to(model.device)
@@ -76,7 +79,6 @@ def eval_model(model: CLIPCapWrapper, preprocessor: CLIPProcessor, args) \
 
 
 def main(args):
-
     if args.captions_import_file is None:
         if args.model_pth is None:
             raise Exception("captions_import_file and model_pth can not be None at the same time. "
