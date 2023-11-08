@@ -116,8 +116,10 @@ def get_splits_for_evaluation(annotations_files: Union[str, List[str]], img_dirs
             dataloader_idx = 0 if split == "val" else 1
             datasets_indices.append(dataloaders[dataloader_idx].dataset.datasets[idx].indices)
     else:
-        dataloader_idx = 0 if use_splits is False or splits == "val" else 1
-        datasets_indices.append(dataloaders[dataloader_idx].dataset.datasets[0].indices)
+        if use_splits:
+            datasets_indices.append(dataloaders[0].dataset.indices)
+        else:
+            datasets_indices.append(dataloaders[0].dataset.datasets[0].indices)
 
     val_sets = []
 
