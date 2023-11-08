@@ -19,7 +19,13 @@ def export_metrics(avg_metrics, scores_dir, scores_file, model_basename):
     for metric, value in avg_metrics.items():
         metrics_str += "{:s}\t{:.3f}\t".format(metric, value)
 
-    with open(os.path.join(scores_dir, scores_file), "a") as msf:
+    if not os.path.exists(scores_dir):
+        os.makedirs(scores_dir)
+
+    scores_file = os.path.join(scores_dir, scores_file)
+    mode = "w" if not os.path.exists(scores_file) else "a"
+
+    with open(scores_file, mode) as msf:
         msf.write("{:s}\t{:s}\n".format(model_basename, metrics_str))
 
 
@@ -93,11 +99,20 @@ def main(args):
                 (len(args.captions_export_file) == 0 or not args.captions_export_file.endswith(".json"))):
             raise Exception("No `captions_export_file` was passed. Make sure you pass a valid file JSON path.")
 
+        if not args.no_splits and len(args.splits) == 1:
+            args.splits = args.splits[0]
+
+        if len(args.annotations_files) == 1:
+            args.annotations_files = args.annotations_files[0]
+
+        if len(args.img_dirs) == 1:
+            args.img_dirs = args.img_dirs[0]
+
         print(f"Loading checkpoint: {args.model_pth} and processor: {args.processor}")
 
         model = CLIPCapWrapper.load_from_checkpoint(args.model_pth)
         preprocessor = CLIPProcessor.from_pretrained(args.processor)
-
+        model_basename = args.model_basename if args.model_basename is not None else get_model_basename(args.model_pth)
         # can be either a dictionary containing the metrics or a list of dictionaries containing the generated captions
         results = eval_model(model=model, preprocessor=preprocessor, args=args)
 
@@ -105,7 +120,7 @@ def main(args):
             export_metrics(avg_metrics=results, scores_dir=args.scores_dir, scores_file=args.scores_file,
                            model_basename=get_model_basename(args.model_pth))
         else:
-            results[len(results) - 1] = {"model_basename": get_model_basename(args.model_pth)}
+            results[len(results) - 1] = {"model_basename": model_basename}
 
             with open(args.captions_export_file, "w") as export_file:
                 json.dump(results, export_file)
@@ -122,6 +137,9 @@ def main(args):
         with open(args.captions_import_file) as json_file:
             data = json.load(json_file)
 
+        model_basename = data[len(data) - 1]["model_basename"]
+        print(f"Model basename: {model_basename}")
+
         avg_metrics = {metric: 0.0 for metric in args.metrics}
         no_meteor_count = 0
 
@@ -133,7 +151,9 @@ def main(args):
             progress_bar.set_description(f"Evaluating model, current metrics: {avg_metrics}")
 
         export_metrics(avg_metrics=avg_metrics, scores_dir=args.scores_dir, scores_file=args.scores_file,
-                       model_basename=data[len(data) - 1]["model_basename"])
+                       model_basename=model_basename)
+
+        print("Evaluation COMPLETED!")
 
 
 if __name__ == "__main__":
@@ -145,6 +165,8 @@ if __name__ == "__main__":
     parser.add_argument("--scores_file", type=str, default="clip_cap_scores.tsv",
                         help="Name of the scores file. It will be saved under the scores_dir")
     parser.add_argument("--model_pth", type=str, help="Path of the model to evaluate", default=None)
+    parser.add_argument("--model_basename", type=str, default=None,
+                        help="The model basename that will be saved along with the scores")
     parser.add_argument("--processor", type=str, default="openai/clip-vit-base-patch32",
                         help="Processor from CLIPProcessor.from_pretrained to preprocess data")
     parser.add_argument("--use_beam_search", default=False, action="store_true",
