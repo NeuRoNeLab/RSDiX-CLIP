@@ -367,6 +367,10 @@ To evaluate the RSD-CLIPCap model, please:
     - `--img_dirs (Union[str, List[str]])`: Directory or Directories with all the images.
     - `--splits (Union[str, List[str]])`: Split or splits to considerate for evaluation. Can be "val" or "test". 
 
+**NOTE**: Be aware that if you need to evaluate the captioning model with the Meteor metric and SPICE-based metrics on a Windows or MacOS machine, you may expect some errors as stated in the [aac-metrics repository](https://github.com/Labbeti/aac-metrics). 
+In order to avoid any complications, we recommend you to set up your environment on a Linux system. 
+If you are not able to do so, you may export the predicted captions into a `.json` file and perform the evaluation on another machine.
+
 # Inference
 
 ## Running the RSD-CLIP Remote Sensing Inference Script
