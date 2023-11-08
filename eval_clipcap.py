@@ -113,7 +113,7 @@ def main(args):
         captions_str = ""
 
         if args.export_captions:
-            captions_str = f"Captions exported to: {args.caption_export_file}"
+            captions_str = f"Captions exported to: {args.captions_export_file}"
 
         print(f"Evaluation COMPLETED! {captions_str}")
     else:
