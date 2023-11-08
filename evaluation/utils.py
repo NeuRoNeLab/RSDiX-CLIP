@@ -1,10 +1,11 @@
 import json
 import os
 
+from aac_metrics.functional import sbert_sim, rouge_l, bleu, meteor
 from typing import List, Union
 
 from datasets import CaptioningDataModule, CaptioningDataset
-from utils import IMAGE_FIELD, RAW_CAPTION_FIELD
+from utils import IMAGE_FIELD, RAW_CAPTION_FIELD, METEOR, SBERT_SIM, ROUGE_L, BLEU, MAX_BLEU, MIN_BLEU
 
 
 def get_model_basename(model):
@@ -124,3 +125,36 @@ def get_splits_for_evaluation(annotations_files: Union[str, List[str]], img_dirs
         get_split_images(datasets[_], datasets_indices[_], val_sets)
 
     return val_sets
+
+
+def compute_captioning_metrics(preds: list[str], reference_captions: list[list[str]], avg_metrics: dict,
+                               i: int, no_meteor_count: int):
+    if METEOR in avg_metrics:
+        try:
+            value, _ = meteor(candidates=preds, mult_references=reference_captions,
+                              java_path=os.getenv("JAVA_HOME"))
+            value = value[METEOR].item()
+            avg_metrics[METEOR] = avg_metrics[METEOR] + 1 / (i + 1 - no_meteor_count) * (
+                    value - avg_metrics[METEOR])
+        except ValueError as e:
+            no_meteor_count += 1
+            print(f"Meteor could not be computed due to error {e.with_traceback(None)} "
+                  f"on the couple: ({preds}, {reference_captions}). "
+                  f"Increasing the no_meteor_count to {no_meteor_count}")
+
+    if SBERT_SIM in avg_metrics:
+        value, _ = sbert_sim(candidates=preds, mult_references=reference_captions)
+        value = value[SBERT_SIM].item()
+        avg_metrics[SBERT_SIM] = avg_metrics[SBERT_SIM] + 1 / (i + 1) * (value - avg_metrics[SBERT_SIM])
+    if ROUGE_L in avg_metrics:
+        value, _ = rouge_l(candidates=preds, mult_references=reference_captions)
+        value = value[ROUGE_L].item()
+        avg_metrics[ROUGE_L] = avg_metrics[ROUGE_L] + 1 / (i + 1) * (value - avg_metrics[ROUGE_L])
+    for j in range(MIN_BLEU, MAX_BLEU + 1):
+        bleu_j = f"{BLEU}{j}"
+        if bleu_j in avg_metrics:
+            value, _ = bleu(candidates=preds, mult_references=reference_captions, n=j)
+            value = value[bleu_j].item()
+            avg_metrics[bleu_j] = avg_metrics[bleu_j] + 1 / (i + 1) * (value - avg_metrics[bleu_j])
+
+    return avg_metrics
