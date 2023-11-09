@@ -3,7 +3,7 @@ from typing import List
 import torch
 from transformers import GPT2Tokenizer
 
-from .clicap import ClipCaptionModel
+from .clipcap import ClipCaptionModel
 
 
 def generate_caption(imgs,

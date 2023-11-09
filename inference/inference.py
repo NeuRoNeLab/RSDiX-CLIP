@@ -11,6 +11,7 @@ from models.clipcap import generate_caption
 from utils import IMAGE_FIELD
 
 
+@torch.no_grad()
 def generate_and_store_captions(model: CLIPCapWrapper, args, checkpoint_interval: int = 50):
     """
     Generates and stores captions for images in a dataset using a pre-trained image-captioning model.
@@ -36,7 +37,6 @@ def generate_and_store_captions(model: CLIPCapWrapper, args, checkpoint_interval
                                                 f"and image directory: {args.img_dir}' -'...")
     os.makedirs(args.out_path, exist_ok=True)  # make the out dir if it doesn't exist
     for i in progress_bar:
-
         # Load PIL image
         img, _ = ds[i]
 
