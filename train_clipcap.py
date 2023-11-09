@@ -2,13 +2,16 @@ from lightning import Trainer  # noqa: F401
 from lightning.pytorch.cli import LightningCLI
 
 from datasets import CaptioningDataModule
-from models import CLIPCapWrapper
+from models import RSDClipCap
+from utils import enable_matmul_precision
 
 
 def cli_main():
-    LightningCLI(model_class=CLIPCapWrapper, datamodule_class=CaptioningDataModule,
-                 save_config_kwargs={"overwrite": True})
+    LightningCLI(model_class=RSDClipCap, datamodule_class=CaptioningDataModule,
+                 save_config_kwargs={"overwrite": True},
+                 parser_kwargs={"fit": {"default_config_files": ["clipcap_config.yaml"]}})
 
 
 if __name__ == "__main__":
+    enable_matmul_precision()
     cli_main()

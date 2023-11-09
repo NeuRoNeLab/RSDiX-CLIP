@@ -8,6 +8,9 @@
 # datasets
 /data
 
+# wandb
+/wandb
+
 /config.yaml
 /clipcap_config.yaml
 /clip_config.yaml
