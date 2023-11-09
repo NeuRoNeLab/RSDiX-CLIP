@@ -9,7 +9,7 @@ from torchvision.io import read_image
 from tqdm import tqdm
 from transformers import CLIPProcessor
 
-from models import CLIPWrapper
+from models import RSDClip
 from evaluation.utils import get_eval_images, get_model_basename, get_classes
 
 K_VALUES = [1, 3, 5, 10]
@@ -21,7 +21,7 @@ def predict_image(img_file, model, processor, eval_sentences, classes_names, k, 
 
     Args:
         img_file (str): The filename of the image.
-        model (CLIPWrapper): The pre-trained CLIP model.
+        model (RSDClip): The pre-trained CLIP model.
         processor (CLIPProcessor): The CLIP processor for data preprocessing.
         eval_sentences (list of str): Evaluation sentences corresponding to class names.
         classes_names (list of str): List of class names.
@@ -63,7 +63,7 @@ def predict(model, processor, eval_images, classes_names, model_scores_file, img
     Predicts classes for a list of evaluation images using a CLIP model and computes scores.
 
     Args:
-        model (CLIPWrapper): The pre-trained CLIP model.
+        model (RSDClip): The pre-trained CLIP model.
         processor (CLIPProcessor): The CLIP processor for data preprocessing.
         eval_images (list of str): List of image filenames to evaluate.
         classes_names (list of str): List of class names.
@@ -124,7 +124,7 @@ def main(args):
     print("Evaluating CLIP: Starting evaluation...")
     print(f"Loading checkpoint: {args.model_pth} and processor: {args.processor}")
 
-    model = CLIPWrapper.load_from_checkpoint(args.model_pth)
+    model = RSDClip.load_from_checkpoint(args.model_pth)
     processor = CLIPProcessor.from_pretrained(args.processor)
 
     model_scores_file = os.path.join(args.scores_dir, get_model_basename(args.model_pth)) + ".tsv"

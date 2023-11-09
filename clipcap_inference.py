@@ -2,7 +2,7 @@ import argparse
 import torch
 
 from inference.inference import generate_and_store_captions
-from models import CLIPCapWrapper
+from models import RSDClipCap
 
 
 def main():
@@ -22,7 +22,7 @@ def main():
     print("Loaded args: ", args)
     # Load the model
     print(f"Loading CLIPCap model from checkpoint: {args.checkpoint_path}")
-    model = CLIPCapWrapper.load_from_checkpoint(args.checkpoint_path)
+    model = RSDClipCap.load_from_checkpoint(args.checkpoint_path)
     print("Loaded CLIPCap model")
 
     # Generate the captions

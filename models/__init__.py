@@ -1,3 +1,3 @@
 from .clip.model_utils import *
-from .clip.wrapper import CLIPWrapper
-from .clipcap.clipcap_wrapper import CLIPCapWrapper
+from .clip.rsd_clip import RSDClip
+from .clipcap.rsd_clipcap import RSDClipCap

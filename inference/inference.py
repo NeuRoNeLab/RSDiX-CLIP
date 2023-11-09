@@ -6,18 +6,18 @@ from tqdm import tqdm
 from transformers import CLIPProcessor
 
 from datasets import CaptioningDataset
-from models import CLIPCapWrapper, CLIPWrapper
+from models import RSDClipCap, RSDClip
 from models.clipcap import generate_caption
 from utils import IMAGE_FIELD
 
 
 @torch.no_grad()
-def generate_and_store_captions(model: CLIPCapWrapper, args, checkpoint_interval: int = 50):
+def generate_and_store_captions(model: RSDClipCap, args, checkpoint_interval: int = 50):
     """
     Generates and stores captions for images in a dataset using a pre-trained image-captioning model.
 
     Args:
-        model (CLIPCapWrapper): The image-captioning model for generating captions.
+        model (RSDClipCap): The image-captioning model for generating captions.
         args (argparse.Namespace): The command-line arguments containing the following:
             - annotations_file (str): The path to the dataset file containing the annotations.
             - img_dir (str): Directory where all the images are contained.
@@ -74,12 +74,12 @@ def generate_and_store_captions(model: CLIPCapWrapper, args, checkpoint_interval
 
 
 @torch.no_grad()
-def generate_and_store_clip_embeddings(clip_model: CLIPWrapper, args):
+def generate_and_store_clip_embeddings(clip_model: RSDClip, args):
     """
     Extracts CLIP embeddings for images in a given dataset and saves them as individual files.
 
     Args:
-        clip_model (CLIPWrapper): The CLIP model used for encoding images.
+        clip_model (RSDClip): The CLIP model used for encoding images.
         args (argparse.Namespace): The command-line arguments containing the following:
             - annotations_file (str): The path to the dataset file containing the annotations.
             - img_dir (str): Directory where all the images are contained.
@@ -123,7 +123,7 @@ def get_image_embedding(imgs, clip_model) -> torch.Tensor:
 
     Args:
         imgs (torch.Tensor): The input image(s) for embedding extraction.
-        clip_model (CLIPWrapper): The CLIP model used for encoding images.
+        clip_model (RSDClip): The CLIP model used for encoding images.
 
     Returns:
         torch.Tensor: The CLIP embeddings for the input image(s).

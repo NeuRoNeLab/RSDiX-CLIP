@@ -17,7 +17,7 @@ from .model_utils import compute_mse, compute_accuracy, compute_teacher_targets
 from .ema import ExponentialMovingAverage
 
 
-class CLIPWrapper(l.LightningModule):
+class RSDClip(l.LightningModule):
     """
     A Pytorch-Lightning based wrapper for Hugging Face's CLIP implementation.
     """
