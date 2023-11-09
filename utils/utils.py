@@ -150,7 +150,7 @@ def separate_nwpu_test_images(annotations_file: str, test_output_file: str = "da
     for category in data.keys():
         for category_row in data[category]:
             row = {
-                "filename": category_row["filename"],
+                "filename": f"{category}{os.sep}{category_row['filename']}",
                 "imgid": category_row["imgid"],
                 "split": category_row["split"],
                 "sentences": [{"raw": category_row[raw_key]} for raw_key in category_row.keys() if raw_key.startswith("raw")]
@@ -166,3 +166,7 @@ def separate_nwpu_test_images(annotations_file: str, test_output_file: str = "da
 
     with open(test_output_file, "w") as json_file:
         json.dump(test_data, json_file)
+
+
+if __name__ == "__main__":
+    separate_nwpu_test_images("./data/NWPU-Captions/dataset_nwpu.json")
