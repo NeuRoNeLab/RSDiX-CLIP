@@ -4,6 +4,7 @@ from typing import Tuple
 
 import torch.cuda
 import xmltodict
+from lightning.pytorch.cli import LightningCLI
 
 
 def get_splits(n_instances: int, train_split_percentage: float, val_split_percentage: float) -> Tuple[int, int, int]:
@@ -24,7 +25,7 @@ def get_splits(n_instances: int, train_split_percentage: float, val_split_percen
 
     train_split = int(n_instances * train_split_percentage / 100)
     remaining_split = n_instances - train_split
-    val_split = remaining_split - int(n_instances * val_split_percentage / 100)
+    val_split = int(n_instances * val_split_percentage / 100)
     test_split = remaining_split - val_split
 
     # If no test set is required, then test_split is just remainder, that we can add to the train
@@ -61,37 +62,6 @@ def nais_to_json(annotations_file: str, json_file_name: str = "dataset_nais"):
     data_dir = os.path.dirname(annotations_file)
     with open(f"{data_dir}/{json_file_name}.json", "w") as f:
         json.dump(images, f, indent=4)
-
-
-class ListWrapper(list):
-    """
-    A custom list class that supports device assignment.
-    """
-    def __init__(self, initial_list=None):
-        """
-        Initialize the ListWrapper
-
-        Args:
-            initial_list (list): Initial list to populate the object.
-        """
-        if initial_list is None:
-            super().__init__()
-        else:
-            super().__init__(initial_list)
-
-        self._device = "cuda" if torch.cuda.is_available() else "cpu"
-
-    @property
-    def device(self):
-        return self._device
-
-    @device.setter
-    def device(self, device):
-        self._device = device
-
-    def to(self, device):
-        self._device = device
-        return self
 
 
 def separate_rsicd_test_images(annotations_file: str, test_output_file: str = "dataset_rsicd_test.json"):
@@ -168,5 +138,47 @@ def separate_nwpu_test_images(annotations_file: str, test_output_file: str = "da
         json.dump(test_data, json_file)
 
 
-if __name__ == "__main__":
-    separate_nwpu_test_images("./data/NWPU-Captions/dataset_nwpu.json")
+def enable_matmul_precision(precision: str = "high"):
+    if not torch.cuda.is_available():
+        return
+
+    num_gpus = torch.cuda.device_count()
+
+    for gpu_id in range(num_gpus):
+        gpu_properties = torch.cuda.get_device_properties(gpu_id)
+
+        # Check if the GPU supports Tensor Cores (CUDA capability >= 7)
+        if gpu_properties.major >= 7:
+            torch.cuda.set_device(gpu_id)
+            torch.set_float32_matmul_precision(precision)
+
+
+class ListWrapper(list):
+    """
+    A custom list class that supports device assignment.
+    """
+    def __init__(self, initial_list=None):
+        """
+        Initialize the ListWrapper
+
+        Args:
+            initial_list (list): Initial list to populate the object.
+        """
+        if initial_list is None:
+            super().__init__()
+        else:
+            super().__init__(initial_list)
+
+        self._device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    @property
+    def device(self):
+        return self._device
+
+    @device.setter
+    def device(self, device):
+        self._device = device
+
+    def to(self, device):
+        self._device = device
+        return self
