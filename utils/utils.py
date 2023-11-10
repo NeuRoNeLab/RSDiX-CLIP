@@ -4,7 +4,6 @@ from typing import Tuple
 
 import torch.cuda
 import xmltodict
-from lightning.pytorch.cli import LightningCLI
 
 
 def get_splits(n_instances: int, train_split_percentage: float, val_split_percentage: float) -> Tuple[int, int, int]:
