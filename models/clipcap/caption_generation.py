@@ -1,11 +1,9 @@
 from typing import List
-
+from tqdm import trange
 import numpy as np
 import torch
 import torch.nn.functional as nnf
-from tqdm import trange
 from transformers import GPT2Tokenizer
-
 from .clipcap import ClipCaptionModel
 from .model_utils import remove_dots, remove_pad_token
 
