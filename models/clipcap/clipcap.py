@@ -420,7 +420,8 @@ class ClipCaptionModel(nn.Module):
                  num_layers: int = 8,
                  mapping_type: MappingType = MappingType.MLP,
                  dropout_transformer: float = 0.0,
-                 dropout_gpt2: Optional[float] = None):
+                 dropout_gpt2: Optional[float] = None,
+                 gpt2_model: str = "gpt2"):
         """
         CLIPCap captioning model.
 
@@ -435,18 +436,20 @@ class ClipCaptionModel(nn.Module):
                 0.0.
             dropout_gpt2 (float, optional): The dropout rate to be applied in the GPT-2 model. If None, the default
                 GPT-2 model will be used. Defaults to None.
+            gpt2_model (str): The GPT-2 model to use to generate the captions. Defaults to the baseline model of
+                HuggingFace.
         """
         super(ClipCaptionModel, self).__init__()
         self.prefix_length = prefix_length
 
         if dropout_gpt2 is not None:
-            gpt2_config = AutoConfig.from_pretrained('gpt2')
+            gpt2_config = AutoConfig.from_pretrained(gpt2_model)
             gpt2_config.attn_dropout = dropout_gpt2
             gpt2_config.attn_dropout = dropout_gpt2
             # gpt2_config.embd_pdrop = dropout_gpt2
-            self.gpt = GPT2LMHeadModel.from_pretrained('gpt2', config=gpt2_config)
+            self.gpt = GPT2LMHeadModel.from_pretrained(gpt2_model, config=gpt2_config)
         else:
-            self.gpt = GPT2LMHeadModel.from_pretrained('gpt2')
+            self.gpt = GPT2LMHeadModel.from_pretrained(gpt2_model)
         self.gpt_embedding_size = self.gpt.transformer.wte.weight.shape[1]
         if mapping_type == MappingType.MLP:
             self.clip_project = MLP((prefix_size, (self.gpt_embedding_size * prefix_length) // 2,

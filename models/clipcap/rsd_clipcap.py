@@ -46,11 +46,12 @@ class RSDClipCap(l.LightningModule):
                  ii_coeff: float = 1.0,
                  tt_coeff: float = 1.0,
                  remove_diag: bool = False,
-                 load_from_checkpoint: bool = False,
                  checkpoint_path: str = None,
+                 clip_checkpoint_path: str = None,
+                 clipcap_checkpoint_path: str = None,
                  metrics: Union[str, list] = ALLOWED_METRICS,
                  use_beam_search: bool = False,
-                 tokenizer: str = "gpt2",
+                 gpt_model: str = "gpt2",
                  pad_token: str = None,
                  every_n_batches: int = 10,
                  freeze_clip_encoder: bool = True):
@@ -85,11 +86,13 @@ class RSDClipCap(l.LightningModule):
             ii_coeff (float): Coefficient for the image-image matching loss.
             tt_coeff (float): Coefficient for the text-text matching loss.
             remove_diag (bool): Whether to remove the diagonal of the similarity matrix.
-            load_from_checkpoint (bool): Whether to load the CLIP model from a checkpoint.
-            checkpoint_path (str): Path to the CLIP model checkpoint.
+            checkpoint_path (str): Path to the model checkpoint.
+            clip_checkpoint_path (str): Path to the CLIP model checkpoint.
+            clipcap_checkpoint_path (str): Path to the CLIPCap model checkpoint.
             metrics (Union[str, list]): Evaluation metrics for the model.
             use_beam_search (bool): Whether to use beam search for text generation.
-            tokenizer (str): Pre-trained tokenizer for text generation.
+            gpt_model (str): The GPT-2 model to use to generate the captions. Defaults to the baseline model of
+                HuggingFace.
             pad_token (str): Token used for padding sequences. If None, the EOS token is used for padding.
             every_n_batches (int): Frequency of computing evaluation metrics.
             freeze_clip_encoder (bool): Whether to freeze the CLIP encoder during training.
@@ -103,8 +106,8 @@ class RSDClipCap(l.LightningModule):
             if _ not in ALLOWED_METRICS:
                 raise Exception(f"metric `{_} not allowed. ALLOWED METRICS: f{ALLOWED_METRICS}")
 
-        if load_from_checkpoint:
-            self._clip_encoder = RSDClip.load_from_checkpoint(checkpoint_path=checkpoint_path)
+        if clip_checkpoint_path is not None:
+            self._clip_encoder = RSDClip.load_from_checkpoint(checkpoint_path=clip_checkpoint_path)
         else:
             self._clip_encoder = RSDClip(model=model, lr=lr, alpha=alpha, ema_decay=ema_decay,
                                          weight_decay=weight_decay, start_factor=start_factor,
@@ -116,16 +119,33 @@ class RSDClipCap(l.LightningModule):
         if freeze_clip_encoder:
             self._clip_encoder.freeze()
 
-        self._clipcap = ClipCaptionModel(prefix_length=prefix_length, clip_length=clip_length, prefix_size=prefix_size,
+        self._clipcap = ClipCaptionModel(prefix_length=prefix_length, clip_length=clip_length,
+                                         prefix_size=prefix_size,
+                                         gpt2_model=gpt_model,
                                          num_layers=num_layers, mapping_type=mapping_type,
                                          dropout_transformer=dropout_transformer, dropout_gpt2=dropout_gpt2)
+
+        if checkpoint_path is None and clipcap_checkpoint_path is not None:
+            self._clipcap.load_state_dict(torch.load(clipcap_checkpoint_path))
+
+        if checkpoint_path is not None:
+            state_dict = torch.load(checkpoint_path)["state_dict"]
+
+            clip_encoder_state_dict = {key.replace("_clip_encoder.", ""): value for key, value in state_dict.items() if
+                                       "clip_encoder" in key}
+            clipcap_state_dict = {key.replace("_clipcap.", ""): value for key, value in state_dict.items() if
+                                  "clipcap" in key}
+
+            self._clip_encoder.load_state_dict(clip_encoder_state_dict)
+            self._clipcap.load_state_dict(clipcap_state_dict)
+
         self._clipcap_lr = clipcap_lr
         self._clipcap_weight_decay = clipcap_weight_decay
         self._clipcap_warmup_steps = clipcap_warmup_steps
         self._metrics = metrics
         self._use_beam_search = use_beam_search
         self._every_n_batches = every_n_batches
-        self._gpt2_tokenizer = GPT2Tokenizer.from_pretrained(tokenizer)
+        self._gpt2_tokenizer = GPT2Tokenizer.from_pretrained(gpt_model)
 
         if BLEU in metrics:
             for j in range(MIN_BLEU, MAX_BLEU + 1):
@@ -160,10 +180,7 @@ class RSDClipCap(l.LightningModule):
         return loss
 
     def validation_step(self, batch, batch_idx) -> torch.Tensor:
-        images, tokens, mask, raw_captions = (batch[IMAGE_FIELD], batch[GPT2_CAPTION_TOKENS_FIELD],
-                                              batch[GPT2_MASK_FIELD], batch[RAW_CAPTION_FIELD])
-
-        raw_captions = [[rc] for rc in raw_captions]
+        images, tokens, mask = (batch[IMAGE_FIELD], batch[GPT2_CAPTION_TOKENS_FIELD], batch[GPT2_MASK_FIELD])
         # get CLIP images embeddings that will be used as the prefix by the captioning model
         prefix = self._clip_encoder.encode_image(images)
         # normalize
@@ -171,11 +188,14 @@ class RSDClipCap(l.LightningModule):
         val_loss = compute_loss(self._clipcap, tokens, prefix, mask)
 
         if self.trainer.sanity_checking is False and batch_idx > 0 and batch_idx % self._every_n_batches == 0:
+            raw_captions = [[rc] for rc in batch[RAW_CAPTION_FIELD]]
+
             preds = generate_caption(imgs=images,
                                      clip_encoder=self._clip_encoder,
                                      tokenizer=self._gpt2_tokenizer,
                                      model=self._clipcap,
                                      use_beam_search=self._use_beam_search)
+
             for metric in self._metrics:
                 if metric == METEOR:
                     try:
@@ -183,7 +203,7 @@ class RSDClipCap(l.LightningModule):
                                                    java_path=os.getenv("JAVA_HOME"))
                         value = value[metric].item()
                         self._avg_metrics[METEOR] = self._avg_metrics[metric] + 1 / (
-                                    self._avg_metrics_idx + 1 - self._no_meteor_count) * (
+                                self._avg_metrics_idx + 1 - self._no_meteor_count) * (
                                                             value - self._avg_metrics[metric])
                     except ValueError as e:
                         print(f"Meteor could not be computed due to error {e.with_traceback(None)} "
@@ -198,7 +218,7 @@ class RSDClipCap(l.LightningModule):
                         value, _ = METRICS[metric](candidates=preds, mult_references=raw_captions)
                     value = value[metric].item()
                     self._avg_metrics[metric] = self._avg_metrics[metric] + 1 / (self._avg_metrics_idx + 1) * (
-                                value - self._avg_metrics[metric])
+                            value - self._avg_metrics[metric])
                 self._avg_metrics_idx = self._avg_metrics_idx + 1
 
         self._avg_metrics['val_loss'] = val_loss.item()
