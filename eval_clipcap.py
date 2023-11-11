@@ -10,7 +10,7 @@ from transformers import CLIPProcessor
 from evaluation.utils import get_model_basename, get_splits_for_evaluation, compute_captioning_metrics
 from models import RSDClipCap
 from models.clipcap import generate_caption
-from utils import IMAGE_FIELD, CLIP_MAX_LENGTH, RAW_CAPTION_FIELD, ALLOWED_METRICS
+from utils import IMAGE_FIELD, CLIP_MAX_LENGTH, RAW_CAPTION_FIELD, SBERT_SIM, ROUGE_L, BLEU
 
 
 def export_metrics(avg_metrics, scores_dir, scores_file, model_basename):
@@ -169,10 +169,9 @@ if __name__ == "__main__":
                         help="The model basename that will be saved along with the scores")
     parser.add_argument("--processor", type=str, default="openai/clip-vit-base-patch32",
                         help="Processor from CLIPProcessor.from_pretrained to preprocess data")
-    parser.add_argument("--use_beam_search", default=False, action="store_true",
-                        help="Whether to beam search during evaluation")
+    parser.add_argument("--use_beam_search", default=False, action="store_true")
     parser.add_argument("--metrics", nargs='*',
-                        default=ALLOWED_METRICS,
+                        default=[SBERT_SIM, ROUGE_L, f'{BLEU}1', f'{BLEU}2', f'{BLEU}3', f'{BLEU}4'],
                         help='The metrics to use during evaluation')
     parser.add_argument("--no_splits", default=False, action="store_true")
     parser.add_argument("--export_captions", default=False, action="store_true")
