@@ -114,7 +114,7 @@ class RSDClip(l.LightningModule):
             state_dict = torch.load(checkpoint_path)["state_dict"]
 
             student_state_dict = {key.replace("_student.", ""): value for key, value in state_dict.items() if
-                                       "student" in key}
+                                  "student" in key}
             teacher_state_dict = {key.replace("_teacher.", ""): value for key, value in state_dict.items() if
                                   "teacher" in key}
 
