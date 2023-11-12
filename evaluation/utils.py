@@ -64,7 +64,8 @@ def get_split_images(ds, ds_indices, sets):
         row = ds.img_captions.iloc[idx, 0]
         img = ds[idx][0]
         captions = [[sentence['raw'] for sentence in row["sentences"]]]
-        sets.append({IMAGE_FIELD: img, RAW_CAPTION_FIELD: captions})
+        sets.append({"filename": os.path.join(ds.img_dir, row["filename"]),
+                     IMAGE_FIELD: img, RAW_CAPTION_FIELD: captions})
 
 
 def get_splits_for_evaluation(annotations_files: Union[str, List[str]], img_dirs: Union[str, List[str]],

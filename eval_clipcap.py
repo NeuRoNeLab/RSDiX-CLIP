@@ -29,8 +29,7 @@ def export_metrics(avg_metrics, scores_dir, scores_file, model_basename):
         msf.write("{:s}\t{:s}\n".format(model_basename, metrics_str))
 
 
-def eval_model(model: RSDClipCap, preprocessor: CLIPProcessor, args) \
-        -> tuple[list[dict[str, list[str] | Any]], dict | Any]:
+def eval_model(model: RSDClipCap, preprocessor: CLIPProcessor, args):
     """
     Evaluates the performance of the CLIPCapWrapper on a given dataset.
 
@@ -43,9 +42,9 @@ def eval_model(model: RSDClipCap, preprocessor: CLIPProcessor, args) \
             - use_beam_search (bool): Whether to use beam search for text generation.
 
     Returns:
-        List[Dict[str, str]]: A list of dictionary containing the predicted captions and the corresponding
-            ground truths.
-        Dict[str, float]: A dictionary containing the average value of each evaluation metric computed on the dataset.
+        Tuple[List[str], Dict[str, str]]: A tuple containing a list of dictionary containing the predicted captions
+            and the corresponding ground truths and a  dictionary containing the average value
+            of each evaluation metric computed on the dataset.
     """
 
     # Set global seed
@@ -76,7 +75,7 @@ def eval_model(model: RSDClipCap, preprocessor: CLIPProcessor, args) \
             avg_metrics = compute_captioning_metrics(preds=preds, reference_captions=reference_captions,
                                                      avg_metrics=avg_metrics, i=i, no_meteor_count=no_meteor_count)
         if args.export_captions:
-            captions.append({"preds": preds, "reference_captions": reference_captions})
+            captions.append({"filename": ds[i]["filename"], "preds": preds, "reference_captions": reference_captions})
 
         if not args.no_evaluation:
             progress_bar.set_description(f"Evaluating model, current metrics: {avg_metrics}")

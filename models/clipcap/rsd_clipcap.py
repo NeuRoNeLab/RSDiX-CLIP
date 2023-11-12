@@ -106,15 +106,16 @@ class RSDClipCap(l.LightningModule):
             if _ not in ALLOWED_METRICS:
                 raise Exception(f"metric `{_} not allowed. ALLOWED METRICS: f{ALLOWED_METRICS}")
 
-        if clip_checkpoint_path is not None:
-            self._clip_encoder = RSDClip.load_from_checkpoint(checkpoint_path=clip_checkpoint_path)
-        else:
-            self._clip_encoder = RSDClip(model=model, lr=lr, alpha=alpha, ema_decay=ema_decay,
-                                         weight_decay=weight_decay, start_factor=start_factor,
-                                         end_factor=end_factor, total_iters=total_iters,
-                                         use_warmup=use_warmup, warmup_steps=warmup_steps, eps=eps, betas=betas,
-                                         sinkhorn_lambda=sinkhorn_lambda, sinkhorn_iter=sinkhorn_iter,
-                                         ii_coeff=ii_coeff, tt_coeff=tt_coeff, remove_diag=remove_diag)
+        if checkpoint_path is not None:
+            clip_checkpoint_path = None
+
+        self._clip_encoder = RSDClip(model=model, lr=lr, alpha=alpha, ema_decay=ema_decay,
+                                     weight_decay=weight_decay, start_factor=start_factor,
+                                     end_factor=end_factor, total_iters=total_iters,
+                                     use_warmup=use_warmup, warmup_steps=warmup_steps, eps=eps, betas=betas,
+                                     sinkhorn_lambda=sinkhorn_lambda, sinkhorn_iter=sinkhorn_iter,
+                                     ii_coeff=ii_coeff, tt_coeff=tt_coeff, remove_diag=remove_diag,
+                                     checkpoint_path=clip_checkpoint_path)
 
         if freeze_clip_encoder:
             self._clip_encoder.freeze()
@@ -124,9 +125,6 @@ class RSDClipCap(l.LightningModule):
                                          gpt2_model=gpt_model,
                                          num_layers=num_layers, mapping_type=mapping_type,
                                          dropout_transformer=dropout_transformer, dropout_gpt2=dropout_gpt2)
-
-        if checkpoint_path is None and clipcap_checkpoint_path is not None:
-            self._clipcap.load_state_dict(torch.load(clipcap_checkpoint_path))
 
         if checkpoint_path is not None:
             state_dict = torch.load(checkpoint_path)["state_dict"]
@@ -138,6 +136,8 @@ class RSDClipCap(l.LightningModule):
 
             self._clip_encoder.load_state_dict(clip_encoder_state_dict)
             self._clipcap.load_state_dict(clipcap_state_dict)
+        elif clipcap_checkpoint_path is not None:
+            self._clipcap.load_state_dict(torch.load(clipcap_checkpoint_path))
 
         self._clipcap_lr = clipcap_lr
         self._clipcap_weight_decay = clipcap_weight_decay
