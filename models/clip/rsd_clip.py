@@ -41,7 +41,8 @@ class RSDClip(l.LightningModule):
                  sinkhorn_iter: int = 4,
                  ii_coeff: float = 1.0,
                  tt_coeff: float = 1.0,
-                 remove_diag: bool = False):
+                 remove_diag: bool = False,
+                 checkpoint_path: str = None):
         """
             Initialize a CLIPWrapper instance.
 
@@ -69,6 +70,7 @@ class RSDClip(l.LightningModule):
                 tt_coeff (float): Coefficient used in computing teacher targets for self-distillation.
                 remove_diag (bool): Flag to determine whether to remove diagonal elements when computing teacher
                     targets.
+                checkpoint_path (str): Path to the CLIP model checkpoint.
             """
         super().__init__()
 
@@ -107,6 +109,18 @@ class RSDClip(l.LightningModule):
         # Init self-distillation loss and teacher model
         self._dist_loss = DistillationLoss()
         self._teacher = copy.deepcopy(self._student)
+
+        if checkpoint_path is not None:
+            state_dict = torch.load(checkpoint_path)["state_dict"]
+
+            student_state_dict = {key.replace("_student.", ""): value for key, value in state_dict.items() if
+                                       "student" in key}
+            teacher_state_dict = {key.replace("_teacher.", ""): value for key, value in state_dict.items() if
+                                  "teacher" in key}
+
+            self._student.load_state_dict(student_state_dict)
+            self._teacher.load_state_dict(teacher_state_dict)
+
         self._ema_model = ExponentialMovingAverage(self._student.parameters(), decay=ema_decay)
 
         self._sinkhorn_lambda = sinkhorn_lambda
