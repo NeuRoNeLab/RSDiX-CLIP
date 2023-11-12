@@ -1,7 +1,7 @@
 import argparse
 import json
 import os
-from typing import Dict, Union, List
+from typing import Dict, Union, List, Tuple, Any
 
 from lightning import seed_everything
 from tqdm import tqdm
@@ -30,7 +30,7 @@ def export_metrics(avg_metrics, scores_dir, scores_file, model_basename):
 
 
 def eval_model(model: RSDClipCap, preprocessor: CLIPProcessor, args) \
-        -> Union[List[Dict[str, str]], Dict[str, float]]:
+        -> tuple[list[dict[str, list[str] | Any]], dict | Any]:
     """
     Evaluates the performance of the CLIPCapWrapper on a given dataset.
 
@@ -59,7 +59,7 @@ def eval_model(model: RSDClipCap, preprocessor: CLIPProcessor, args) \
 
     progress_bar = tqdm(range(0, len(ds)),
                         desc=f"Evaluating model, current metrics: {avg_metrics}" if not args.export_captions
-                        else "Evaluating model, exporting captions")
+                        and not args.no_evaluation else "Evaluating model, exporting captions")
     for i in progress_bar:
         img = preprocessor(images=ds[i][IMAGE_FIELD], truncation=True, padding="max_length", max_length=CLIP_MAX_LENGTH,
                            return_tensors="pt")[IMAGE_FIELD].to(model.device)
@@ -72,16 +72,16 @@ def eval_model(model: RSDClipCap, preprocessor: CLIPProcessor, args) \
                                  model=model.clipcap,
                                  use_beam_search=args.use_beam_search)
 
-        if not args.export_captions:
+        if not args.no_evaluation:
             avg_metrics = compute_captioning_metrics(preds=preds, reference_captions=reference_captions,
                                                      avg_metrics=avg_metrics, i=i, no_meteor_count=no_meteor_count)
-        else:
+        if args.export_captions:
             captions.append({"preds": preds, "reference_captions": reference_captions})
 
-        if not args.export_captions:
+        if not args.no_evaluation:
             progress_bar.set_description(f"Evaluating model, current metrics: {avg_metrics}")
 
-    return captions if args.export_captions else avg_metrics
+    return captions, avg_metrics
 
 
 def main(args):
@@ -90,14 +90,17 @@ def main(args):
             raise Exception("captions_import_file and model_pth can not be None at the same time. "
                             "Make sure you pass one of them")
 
-        print("Evaluating CLIP-CAP: Starting evaluation...")
-
         if not args.no_splits and len(args.splits) != len(args.annotations_files):
             raise Exception("The number of splits must match the number of annotations files")
 
         if (args.export_captions and
                 (len(args.captions_export_file) == 0 or not args.captions_export_file.endswith(".json"))):
             raise Exception("No `captions_export_file` was passed. Make sure you pass a valid file JSON path.")
+
+        if not args.export_captions and args.no_evaluation:
+            raise Exception("`export_captions` cannot be False while `no_evaluation` is True.")
+
+        print("Evaluating CLIP-CAP: Starting evaluation...")
 
         if not args.no_splits and len(args.splits) == 1:
             args.splits = args.splits[0]
@@ -113,22 +116,21 @@ def main(args):
         model = RSDClipCap.load_from_checkpoint(args.model_pth)
         preprocessor = CLIPProcessor.from_pretrained(args.processor)
         model_basename = args.model_basename if args.model_basename is not None else get_model_basename(args.model_pth)
-        # can be either a dictionary containing the metrics or a list of dictionaries containing the generated captions
-        results = eval_model(model=model, preprocessor=preprocessor, args=args)
 
-        if not args.export_captions:
-            export_metrics(avg_metrics=results, scores_dir=args.scores_dir, scores_file=args.scores_file,
-                           model_basename=get_model_basename(args.model_pth))
-        else:
-            results[len(results) - 1] = {"model_basename": model_basename}
-
-            with open(args.captions_export_file, "w") as export_file:
-                json.dump(results, export_file)
-
+        captions, avg_metrics = eval_model(model=model, preprocessor=preprocessor, args=args)
         captions_str = ""
 
-        if args.export_captions:
-            captions_str = f"Captions exported to: {args.captions_export_file}"
+        if not args.export_captions:
+            export_metrics(avg_metrics=avg_metrics, scores_dir=args.scores_dir, scores_file=args.scores_file,
+                           model_basename=get_model_basename(args.model_pth))
+        else:
+            if args.export_captions:
+                captions[len(captions) - 1] = {"model_basename": model_basename}
+
+                with open(args.captions_export_file, "w") as export_file:
+                    json.dump(captions, export_file)
+
+                captions_str = f"Captions exported to: {args.captions_export_file}"
 
         print(f"Evaluation COMPLETED! {captions_str}")
     else:
@@ -174,6 +176,7 @@ if __name__ == "__main__":
                         default=[SBERT_SIM, ROUGE_L, f'{BLEU}1', f'{BLEU}2', f'{BLEU}3', f'{BLEU}4'],
                         help='The metrics to use during evaluation')
     parser.add_argument("--no_splits", default=False, action="store_true")
+    parser.add_argument("--no_evaluation", default=False, action="store_true")
     parser.add_argument("--export_captions", default=False, action="store_true")
     parser.add_argument("--captions_export_file", type=str,
                         default=os.path.join(os.getcwd(), "exported_captions.json"))
