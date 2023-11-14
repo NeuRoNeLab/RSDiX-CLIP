@@ -367,9 +367,18 @@ To evaluate the RSD-CLIPCap model, please:
     - `--img_dirs (Union[str, List[str]])`: Directory or Directories with all the images.
     - `--splits (Union[str, List[str]])`: Split or splits to considerate for evaluation. Can be "val" or "test". 
 
-**NOTE**: Be aware that if you need to evaluate the captioning model with the Meteor metric and SPICE-based metrics on a Windows or MacOS machine, you may expect some errors as stated in the [aac-metrics repository](https://github.com/Labbeti/aac-metrics). 
+### Warnings 
+
+Please note that when assessing the captioning model using Meteor metric and SPICE-based metrics on a Windows or MacOS device, you may expect some errors as stated in the [aac-metrics repository](https://github.com/Labbeti/aac-metrics). 
 In order to avoid any complications, we recommend you to set up your environment on a Linux system. 
 If you are not able to do so, you may export the predicted captions into a `.json` file and perform the evaluation on another machine.
+
+### Errors 
+When computing the Meteor metric, in case you encounter the following exception: 
+```python
+METEOR: could not convert string to float: '' on the couple: ([...], [[...]])
+```
+Try changing the locale settings to **US**. For more information, follow [here](https://github.com/Labbeti/aac-metrics/issues/9).
 
 # Inference
 
