@@ -134,8 +134,7 @@ def compute_captioning_metrics(preds: list[str], reference_captions: list[list[s
                                i: int, no_meteor_count: int):
     if METEOR in avg_metrics:
         try:
-            value, _ = meteor(candidates=preds, mult_references=reference_captions,
-                              java_path=os.getenv("JAVA_HOME"))
+            value, _ = meteor(candidates=preds, mult_references=reference_captions)
             value = value[METEOR].item()
             avg_metrics[METEOR] = avg_metrics[METEOR] + 1 / (i + 1 - no_meteor_count) * (
                     value - avg_metrics[METEOR])
