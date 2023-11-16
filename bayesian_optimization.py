@@ -1,5 +1,6 @@
 import os
 from argparse import ArgumentParser
+
 import yaml
 from bayes_opt import BayesianOptimization
 
@@ -70,14 +71,19 @@ def get_last_version():
     items = os.scandir(os.path.join(args.default_root_dir, args.logs_dir))
 
     # Filter out only the directories from the list
-    directories = [item for item in items if os.path.isdir(os.path.join(args.default_root_dir, item))]
+    max_mtime = 0
+    last_directory_version = None
 
-    if directories:
-        # If there are directories in the list, return the last one
-        return os.path.join(args.default_root_dir, directories[-1])
-    else:
-        # If no directories found, return None or handle the case as needed
-        return None
+    for item in items:
+        if not os.path.isdir(item.path):
+            continue
+
+        item_mtime = item.stat().st_mtime
+        if max_mtime < item_mtime:
+            max_mtime = item_mtime
+            last_directory_version = item.path
+
+    return last_directory_version
 
 
 def get_best_val_loss_from_ckpt(path):
@@ -182,7 +188,10 @@ def hyper_search_space(grid_file: str):
                 else:
                     # if there is a string, handle the params as indexes
                     if isinstance(parameters[key][0], str):
-                        pbounds[key] = [0, 1]
+                        if len(parameters[key]) == 1:
+                            pbounds[key] = [0, 0]
+                        else:
+                            pbounds[key] = [i for i in range(len(parameters[key]))]
                     else:
                         pbounds[key] = parameters[key]
 
