@@ -9,7 +9,7 @@ from utils import enable_matmul_precision
 def cli_main():
     LightningCLI(model_class=RSDClip, datamodule_class=CaptioningDataModule,
                  parser_kwargs={"fit": {"default_config_files": ["clip_config.yaml"]}},
-                 save_config_kwargs={"overwrite": True})
+                 save_config_kwargs={"overwrite": True, "config_filename": "clip_config_CLI.yaml"})
 
 
 if __name__ == "__main__":
