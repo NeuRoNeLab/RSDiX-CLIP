@@ -6,3 +6,9 @@ attr_keys:
     dropout_transformer: 0.0,0.8
     dropout_gpt2: 0,0.8
     clipcap_weight_decay: 0,1e-05
+  trainer:
+    logger:
+      class_path: lightning.pytorch.loggers.WandbLogger
+      name: rsd-clipcap-all-datasets
+      project: rsd-clipcap
+      log_model: all

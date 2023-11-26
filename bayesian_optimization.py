@@ -167,6 +167,7 @@ def get_hierarchy_keys(data, pbounds, current_key=""):
                         pbounds[new_key] = [i for i in range(len(values))]
                 else:
                     pbounds[new_key] = values
+            parameters[new_key] = values
 
 
 # Define the hyperparameter search space for Bayesian Optimization
