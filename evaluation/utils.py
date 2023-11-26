@@ -115,6 +115,7 @@ def get_splits_for_evaluation(annotations_files: Union[str, List[str]], img_dirs
     if use_splits and isinstance(splits, list):
         for idx, split in enumerate(splits):
             dataloader_idx = 0 if split == "val" else 1
+            dataloader_idx = dataloader_idx if len(dataloaders) > dataloader_idx else dataloader_idx - 1
             datasets_indices.append(dataloaders[dataloader_idx].dataset.datasets[idx].indices)
     else:
         if use_splits:

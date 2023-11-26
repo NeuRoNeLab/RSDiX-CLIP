@@ -122,7 +122,8 @@ def separate_nwpu_test_images(annotations_file: str, test_output_file: str = "da
                 "filename": f"{category}{os.sep}{category_row['filename']}",
                 "imgid": category_row["imgid"],
                 "split": category_row["split"],
-                "sentences": [{"raw": category_row[raw_key]} for raw_key in category_row.keys() if raw_key.startswith("raw")]
+                "sentences": [{"raw": category_row[raw_key]} for raw_key in category_row.keys() if
+                              raw_key.startswith("raw")]
             }
             if row["split"] == "test":
                 test_data["images"].append(row)
@@ -152,10 +153,30 @@ def enable_matmul_precision(precision: str = "high"):
             torch.set_float32_matmul_precision(precision)
 
 
+def load_model_checkpoint(model_class, checkpoint_path: str):
+    try:
+        if os.path.exists(checkpoint_path):
+            return model_class.load_from_checkpoint(checkpoint_path)
+    except FileNotFoundError:
+        # Since Lightning saves the checkpoint with the current OS file separator, in case of OS switching,
+        # if the checkpoint being loaded was instantiated with a valid "checkpoint_path", the FileNotFoundError
+        # exception will be raised
+        ckpt = torch.load(checkpoint_path)
+
+        # instantiate model to remain coherent with the checkpoint
+        # ignoring the "checkpoint" arguments since they are causing the issue
+        hyper_parameters = {key: value for key, value in ckpt["hyper_parameters"].items() if "checkpoint" not in key}
+        model = model_class(**hyper_parameters)
+
+        # load state dict
+        return model.load_state_dict(ckpt["state_dict"])
+
+
 class ListWrapper(list):
     """
     A custom list class that supports device assignment.
     """
+
     def __init__(self, initial_list=None):
         """
         Initialize the ListWrapper
