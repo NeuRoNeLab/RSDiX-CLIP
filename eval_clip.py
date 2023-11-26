@@ -11,6 +11,7 @@ from transformers import CLIPProcessor
 
 from models import RSDClip
 from evaluation.utils import get_eval_images, get_model_basename, get_classes
+from utils import load_model_checkpoint
 
 K_VALUES = [1, 3, 5, 10]
 
@@ -124,17 +125,17 @@ def main(args):
     print("Evaluating CLIP: Starting evaluation...")
     print(f"Loading checkpoint: {args.model_pth} and processor: {args.processor}")
 
-    model = RSDClip.load_from_checkpoint(args.model_pth)
+    model = load_model_checkpoint(RSDClip, args.model_pth)
     processor = CLIPProcessor.from_pretrained(args.processor)
 
-    model_scores_file = os.path.join(args.scores_dir, get_model_basename(args.model_pth)) + ".tsv"
+    model_basename = args.model_basename if args.model_basename else get_model_basename(args.model_pth)
+    model_scores_file = os.path.join(args.scores_dir, model_basename) + ".tsv"
 
     classes_names = get_classes(imgs_dir=args.imgs_dir)
     eval_images = get_eval_images(annotations_file=args.annotations_file)
 
     predict(model, processor, eval_images, classes_names, model_scores_file, args.imgs_dir)
-    compute_scores(os.path.join(args.scores_dir, args.scores_file), model_scores_file,
-                   get_model_basename(args.model_pth))
+    compute_scores(os.path.join(args.scores_dir, args.scores_file), model_scores_file, model_basename)
 
     print("Evaluation COMPLETED!")
 
@@ -149,5 +150,6 @@ if __name__ == "__main__":
                         help="Processor from CLIPProcessor.from_pretrained to preprocess data")
     parser.add_argument("--annotations_file", type=str, required=True)
     parser.add_argument("--imgs_dir", type=str, required=True)
+    parser.add_argument("--model_basename", type=str, default=None)
 
     main(parser.parse_args())
