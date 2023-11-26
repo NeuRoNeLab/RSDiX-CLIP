@@ -148,13 +148,11 @@ def evaluate_model(**kwargs):
 
 
 def get_hierarchy_keys(data, pbounds, current_key=""):
-    keys = []
-
     for key, value in data.items():
         new_key = f"{current_key}.{key}" if current_key else key
 
         if isinstance(value, dict):
-            keys.extend(get_hierarchy_keys(value, pbounds, new_key))
+            get_hierarchy_keys(value, pbounds, new_key)
         else:
             values = [int(v) if is_int(v) else float(v) if is_float(v) else v for v in value.split(",")]
 
@@ -169,10 +167,6 @@ def get_hierarchy_keys(data, pbounds, current_key=""):
                         pbounds[new_key] = [i for i in range(len(values))]
                 else:
                     pbounds[new_key] = values
-
-            keys.append(new_key)
-
-    return keys
 
 
 # Define the hyperparameter search space for Bayesian Optimization
