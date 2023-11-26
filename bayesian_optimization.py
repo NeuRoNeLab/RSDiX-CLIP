@@ -133,7 +133,8 @@ def evaluate_model(**kwargs):
     run_parameters_args = run_parameters_args.rstrip()
 
     print(f"running {script_to_run} with config {config_file} and parameters: {run_parameters_args}")
-    os.system(f"python {script_to_run} fit --config {config_file} {run_parameters_args} --trainer.default_root_dir {args.default_root_dir}")
+    os.system(
+        f"python {script_to_run} fit --config {config_file} {run_parameters_args} --trainer.default_root_dir {args.default_root_dir}")
     # navigate to the trainer's default root dir, get the latest version, find the checkpoint and pick the best val_loss
     last_version = get_last_version()
 
@@ -144,6 +145,34 @@ def evaluate_model(**kwargs):
 
     # Return the negative accuracy to maximize (Bayesian Optimization expects a maximization problem)
     return -get_best_val_loss_from_ckpt(os.path.join(args.default_root_dir, last_version))
+
+
+def get_hierarchy_keys(data, pbounds, current_key=""):
+    keys = []
+
+    for key, value in data.items():
+        new_key = f"{current_key}.{key}" if current_key else key
+
+        if isinstance(value, dict):
+            keys.extend(get_hierarchy_keys(value, pbounds, new_key))
+        else:
+            values = [int(v) if is_int(v) else float(v) if is_float(v) else v for v in value.split(",")]
+
+            if len(values) > 2:
+                pbounds[new_key] = [0, len(values) - 1]
+            else:
+                # if there is a string, handle the params as indexes
+                if isinstance(values[0], str):
+                    if len(values) == 1:
+                        pbounds[new_key] = [0, 0]
+                    else:
+                        pbounds[new_key] = [i for i in range(len(values))]
+                else:
+                    pbounds[new_key] = values
+
+            keys.append(new_key)
+
+    return keys
 
 
 # Define the hyperparameter search space for Bayesian Optimization
@@ -171,29 +200,7 @@ def hyper_search_space(grid_file: str):
 
         attr_keys = data["attr_keys"]
 
-        for attr_key, params in attr_keys.items():
-            for param_key, param_value in params.items():
-                key = attr_key + "." + param_key
-                values = []
-                for value in param_value.split(","):
-                    if is_int(value):
-                        values.append(int(value))
-                    elif is_float(value):
-                        values.append(float(value))
-                    else:
-                        values.append(value)
-                parameters[key] = values
-                if len(parameters[key]) > 2:
-                    pbounds[key] = [0, len(parameters[key]) - 1]
-                else:
-                    # if there is a string, handle the params as indexes
-                    if isinstance(parameters[key][0], str):
-                        if len(parameters[key]) == 1:
-                            pbounds[key] = [0, 0]
-                        else:
-                            pbounds[key] = [i for i in range(len(parameters[key]))]
-                    else:
-                        pbounds[key] = parameters[key]
+        get_hierarchy_keys(attr_keys, pbounds)
 
         return pbounds
 

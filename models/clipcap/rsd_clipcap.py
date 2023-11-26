@@ -199,8 +199,7 @@ class RSDClipCap(l.LightningModule):
             for metric in self._metrics:
                 if metric == METEOR:
                     try:
-                        value, _ = METRICS[metric](candidates=preds, mult_references=raw_captions,
-                                                   java_path=os.getenv("JAVA_HOME"))
+                        value, _ = METRICS[metric](candidates=preds, mult_references=raw_captions)
                         value = value[metric].item()
                         self._avg_metrics[METEOR] = self._avg_metrics[metric] + 1 / (
                                 self._avg_metrics_idx + 1 - self._no_meteor_count) * (

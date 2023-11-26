@@ -3,7 +3,11 @@ config_file: clip_config.yaml
 attr_keys:
   model:
     lr: 2.2908676527677735e-07,2.2908676527677735e-08,1e-5,2e-5,5e-5,1e-4,3e-4
-    use_warmup: warmup, linear
+    use_warmup: cosine, linear
     weight_decay: 0.1,0.2,0.01
-  trainer.logger:
-      class_path: lightning.pytorch.loggers.WandbLogger
+  trainer:
+      logger:
+        class_path: lightning.pytorch.loggers.WandbLogger
+        name: rsd-clip-all-datasets
+        project: rsd-clip-zero-shot-classifier
+        log_model: all
