@@ -169,7 +169,8 @@ def load_model_checkpoint(model_class, checkpoint_path: str):
         model = model_class(**hyper_parameters)
 
         # load state dict
-        return model.load_state_dict(ckpt["state_dict"])
+        model.load_state_dict(ckpt["state_dict"])
+        return model
 
 
 class ListWrapper(list):
