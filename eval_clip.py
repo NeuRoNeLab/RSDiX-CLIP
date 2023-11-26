@@ -34,6 +34,10 @@ def predict_image(img_file, model, processor, eval_sentences, classes_names, k, 
         list of tuple: A list of top-K predicted class-label and probability pairs.
         """
     label = img_file.split("_")[0]
+
+    if os.sep in label:
+        label = label.split(os.sep)[0]
+
     img_file = os.path.join(imgs_dir, img_file)
 
     img_ext = img_file.split(".")[-1]

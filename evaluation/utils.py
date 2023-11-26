@@ -45,8 +45,16 @@ def get_classes(imgs_dir: str) -> List[str]:
     """Returns all the classes contained in the dataset"""
 
     print("Retrieving classes...")
-    class_names = sorted(list(set([image_name.split("_")[0] for image_name in os.listdir(imgs_dir)
-                                   if image_name.find("_") > -1])))
+    class_names = set()
+
+    # Iterate over the directory and its subdirectories
+    for root, dirs, files in os.walk(imgs_dir):
+        for filename in files:
+            if filename.find("_") > -1:
+                class_names.add(filename.split("_")[0])
+
+    class_names = sorted(list(class_names))
+
     print(f"Retrieved {len(class_names)} classes")
     return class_names
 
