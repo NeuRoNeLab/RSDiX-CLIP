@@ -3,11 +3,16 @@ from argparse import ArgumentParser
 
 import yaml
 from bayes_opt import BayesianOptimization
+from bayes_opt.logger import JSONLogger
+from bayes_opt.event import Events
+from bayes_opt.util import load_logs
 
 args = None
 script_to_run = None
 config_file = None
 parameters = {}
+run_configs = []
+run_number = 0
 
 
 def get_parameter_value(key, value):
@@ -16,7 +21,7 @@ def get_parameter_value(key, value):
 
     Args:
         key (str): The parameter key.
-        value (float): The selected index or actual value.
+        value: The selected index or actual value.
 
     Returns:
         value: The parameter value.
@@ -209,10 +214,26 @@ if __name__ == "__main__":
     parser.add_argument("--n_iter", type=int, default=10)
     parser.add_argument("--n_init_points", type=int, default=5)
     parser.add_argument("--random_state", type=int, default=42)
+    parser.add_argument("--bayesian_runs_export_file", type=str, default="bayesian_runs.json")
+    parser.add_argument("--bayesian_runs_import_file", type=str, default=None)
 
     args = parser.parse_args()
+
+    if not args.bayesian_runs_export_file or not args.bayesian_runs_export_file.endswith(".json"):
+        raise Exception("Provide a valid JSON file for `bayesian_runs_export_file` parameter")
+
+    if args.bayesian_runs_import_file and args.bayesian_runs_import_file.endswith(".json"):
+        raise Exception("Provide a valid JSON file for `bayesian_runs_import_file` parameter")
+
     optimizer = BayesianOptimization(f=evaluate_model, pbounds=hyper_search_space(args.grid_file), verbose=2,
                                      random_state=args.random_state)
-    optimizer.maximize(init_points=args.n_init_points, n_iter=args.n_iter)
+
+    logger = JSONLogger(path=args.bayesian_runs_export_file)
+    optimizer.subscribe(Events.OPTIMIZATION_STEP, logger)
+
+    if args.bayesian_runs_import_file:
+        load_logs(optimizer, logs=[args.bayesian_runs_import_file])
+    else:
+        optimizer.maximize(init_points=args.n_init_points, n_iter=args.n_iter)
 
     print("Best result: {}; f(x) = {}.".format(optimizer.max["params"], optimizer.max["target"]))
