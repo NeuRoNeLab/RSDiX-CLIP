@@ -35,8 +35,7 @@ def get_eval_images(annotations_file: str) -> List[str]:
     with open(annotations_file, "r") as f:
         data = json.loads(f.read())
 
-    eval_images = [image["filename"] for image in data["images"] if image["split"] == "test" and
-                   image["filename"].find("_") > 0]
+    eval_images = [image["filename"] for image in data["images"]]
     print(f"Retrieved {len(eval_images)} images")
     return eval_images
 
@@ -49,9 +48,14 @@ def get_classes(imgs_dir: str) -> List[str]:
 
     # Iterate over the directory and its subdirectories
     for root, dirs, files in os.walk(imgs_dir):
-        for filename in files:
-            if filename.find("_") > -1:
-                class_names.add(filename.split("_")[0])
+        if dirs:
+            # Use subdirectory names instead of filenames
+            class_names.update(name.lower() for name in dirs)
+            break
+        else:
+            for filename in files:
+                if filename.find("_") > -1:
+                    class_names.add(filename.lower().split("_")[0])
 
     class_names = sorted(list(class_names))
 

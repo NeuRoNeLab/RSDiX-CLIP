@@ -13,7 +13,7 @@ from models import RSDClip
 from evaluation.utils import get_eval_images, get_model_basename, get_classes
 from utils import load_model_checkpoint
 
-K_VALUES = [1, 3, 5, 10]
+K_VALUES = [1, 2, 3, 5, 10]
 
 
 def predict_image(img_file, model, processor, eval_sentences, classes_names, k, imgs_dir):
@@ -33,10 +33,14 @@ def predict_image(img_file, model, processor, eval_sentences, classes_names, k, 
         str: The true label of the image.
         list of tuple: A list of top-K predicted class-label and probability pairs.
         """
-    label = img_file.split("_")[0]
 
-    if os.sep in label:
-        label = label.split(os.sep)[0]
+    if os.sep in img_file:
+        label = img_file.split(os.sep)[0]
+    else:
+        parts = img_file.split("_")
+        label = "_".join(parts[:-1])
+
+    label = label.lower()
 
     img_file = os.path.join(imgs_dir, img_file)
 
@@ -109,7 +113,7 @@ def compute_scores(scores_file, model_scores_file, model_basename):
             cols = line.strip().split('\t')
             label = cols[1]
             preds = []
-            for i in range(2, 22, 2):
+            for i in range(2, min(len(cols), 22), 2):
                 preds.append(cols[i])
             for kid, k in enumerate(K_VALUES):
                 preds_k = set(preds[0:k])
