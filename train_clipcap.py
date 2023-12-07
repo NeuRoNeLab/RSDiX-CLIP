@@ -1,3 +1,5 @@
+import os
+
 from lightning import Trainer  # noqa: F401
 from lightning.pytorch.cli import LightningCLI
 
@@ -13,5 +15,6 @@ def cli_main():
 
 
 if __name__ == "__main__":
+    os.environ["TOKENIZERS_PARALLELISM"] = "false"
     enable_matmul_precision()
     cli_main()

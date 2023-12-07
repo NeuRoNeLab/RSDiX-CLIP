@@ -108,6 +108,9 @@ class RSDClipCap(l.LightningModule):
         if checkpoint_path is not None:
             clip_checkpoint_path = None
 
+        if lr is None:
+            lr = clipcap_lr
+
         self._clip_encoder = RSDClip(model=model, lr=lr, alpha=alpha, ema_decay=ema_decay,
                                      weight_decay=weight_decay, start_factor=start_factor,
                                      end_factor=end_factor, total_iters=total_iters,
@@ -231,8 +234,7 @@ class RSDClipCap(l.LightningModule):
         params = [{"params": self._clipcap.parameters()}]
 
         if not self._freeze_clip_encoder:
-            params.append({"params": self._clip_encoder.student.parameters(),
-                           "lr": self._clip_encoder.lr})
+            params.append({"params": self._clip_encoder.student.parameters(), "lr": self._clip_encoder.lr})
 
         optimizer = torch.optim.AdamW(params=params, lr=self._clipcap_lr,
                                       weight_decay=self._clipcap_weight_decay)
