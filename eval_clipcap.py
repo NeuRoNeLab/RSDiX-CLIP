@@ -9,7 +9,7 @@ from transformers import CLIPProcessor
 from evaluation.utils import get_model_basename, get_splits_for_evaluation, compute_captioning_metrics
 from models import RSDClipCap
 from models.clipcap import generate_caption
-from utils import IMAGE_FIELD, CLIP_MAX_LENGTH, RAW_CAPTION_FIELD, ALLOWED_METRICS, load_model_checkpoint
+from utils import IMAGE_FIELD, CLIP_MAX_LENGTH, RAW_CAPTION_FIELD, ALLOWED_METRICS, load_model_checkpoint, METEOR
 
 
 def export_metrics(avg_metrics, scores_dir, scores_file, model_basename):
@@ -49,8 +49,9 @@ def eval_model(model: RSDClipCap, preprocessor: CLIPProcessor, args):
     args.captions = []
     progress_bar = tqdm(range(0, len(ds)),
                         postfix=args.avg_metrics if not args.export_captions_file else None,
-                        desc=f"Evaluating model, current metrics" if not args.export_captions_file
-                                                                     and not args.no_evaluation else "Evaluating model, exporting captions")
+                        desc=f"Evaluating model, current metrics" \
+                            if not args.export_captions_file and not args.no_evaluation
+                        else "Evaluating model, exporting captions")
 
     for i in progress_bar:
         img = preprocessor(images=ds[i][IMAGE_FIELD], truncation=True, padding="max_length", max_length=CLIP_MAX_LENGTH,
@@ -66,8 +67,8 @@ def eval_model(model: RSDClipCap, preprocessor: CLIPProcessor, args):
 
         if not args.no_evaluation:
             compute_captioning_metrics(preds=preds, reference_captions=reference_captions,
-                                                          avg_metrics=args.avg_metrics, i=i,
-                                                          no_meteor_count=args.no_meteor_count)
+                                       avg_metrics=args.avg_metrics, i=i,
+                                       no_meteor_count=args.no_meteor_count)
             progress_bar.set_postfix({key: "{:.3f}".format(value) for key, value in args.avg_metrics.items()})
 
         if args.export_captions_file:
@@ -82,6 +83,9 @@ def main(args):
     args.avg_metrics = {metric: 0.0 for metric in args.metrics}
     args.no_meteor_count = 0
 
+    if METEOR in args.metrics:
+        os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
     if args.import_captions_file is None:
         if args.model_pth is None:
             raise Exception("`import_captions_file` and `model_pth` can not be None at the same time. "
@@ -91,7 +95,7 @@ def main(args):
             raise Exception("The number of splits must match the number of annotations files")
 
         if args.export_captions_file and not args.export_captions_file.endswith(".json"):
-            raise Exception("No `captions_export_file` was passed. Make sure you pass a valid file JSON path.")
+            raise Exception("No `export_captions_file` was passed. Make sure you pass a valid file JSON path.")
 
         if not args.export_captions_file and args.no_evaluation:
             raise Exception("`export_captions_file` cannot be None while `no_evaluation` is True.")
@@ -114,21 +118,18 @@ def main(args):
         model_basename = args.model_basename if args.model_basename is not None else get_model_basename(args.model_pth)
 
         eval_model(model=model, preprocessor=preprocessor, args=args)
-        captions_str = ""
 
-        if not args.export_captions_file:
+        if not args.no_evaluation:
             export_metrics(avg_metrics=args.avg_metrics, scores_dir=args.scores_dir, scores_file=args.scores_file,
                            model_basename=model_basename)
-        else:
-            if args.export_captions_file:
-                args.captions[len(args.captions) - 1] = {"model_basename": model_basename}
 
-                with open(args.captions_export_file, "w") as export_file:
-                    json.dump(args.captions, export_file)
+        if args.export_captions_file:
+            args.captions[len(args.captions) - 1] = {"model_basename": model_basename}
 
-                captions_str = f"Captions exported to: {args.captions_export_file}"
+            with open(args.export_captions_file, "w") as export_file:
+                json.dump(args.captions, export_file)
 
-        print(captions_str)
+            print(f"Captions exported to: {args.export_captions_file}")
     else:
         print(f"Evaluating CLIP-CAP: Starting evaluation on imported file: {args.import_captions_file}...")
 
