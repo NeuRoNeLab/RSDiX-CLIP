@@ -43,8 +43,8 @@ def remove_dots(captions: List[str]) -> List[str]:
         ["Hello.", "This is a test."]
     """
     for i, text in enumerate(captions):
-        if re.match(r"\.(.*)", text):
-            captions[i] = re.sub(r"\.(.*)", "", text) + "."
+        # if re.match(r"\.(.*)", text):
+        captions[i] = re.sub(r"\.(.*)", "", text) + "."
 
     return captions
 

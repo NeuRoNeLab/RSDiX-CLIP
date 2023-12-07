@@ -1,4 +1,3 @@
-import os
 from typing import Optional, Union
 
 import lightning as l
@@ -120,6 +119,8 @@ class RSDClipCap(l.LightningModule):
         if freeze_clip_encoder:
             self._clip_encoder.freeze()
 
+        self._freeze_clip_encoder = freeze_clip_encoder
+
         self._clipcap = ClipCaptionModel(prefix_length=prefix_length, clip_length=clip_length,
                                          prefix_size=prefix_size,
                                          gpt2_model=gpt_model,
@@ -171,11 +172,11 @@ class RSDClipCap(l.LightningModule):
         # get CLIP images embeddings that will be used as the prefix by the captioning model
         prefix = self._clip_encoder.encode_image(images)
         # normalize
-        prefix /= prefix.norm(p=2, dim=-1, keepdim=True)
+        prefix = prefix / prefix.norm(p=2, dim=-1, keepdim=True)
         loss = compute_loss(self._clipcap, tokens, prefix, mask)
 
         self.log_dict({'loss': loss.item()}, prog_bar=True, on_step=True, on_epoch=True, logger=True,
-                      enable_graph=True)
+                      enable_graph=True, batch_size=len(images))
 
         return loss
 
@@ -184,7 +185,7 @@ class RSDClipCap(l.LightningModule):
         # get CLIP images embeddings that will be used as the prefix by the captioning model
         prefix = self._clip_encoder.encode_image(images)
         # normalize
-        prefix /= prefix.norm(p=2, dim=-1, keepdim=True)
+        prefix = prefix / prefix.norm(p=2, dim=-1, keepdim=True)
         val_loss = compute_loss(self._clipcap, tokens, prefix, mask)
 
         if self.trainer.sanity_checking is False and batch_idx > 0 and batch_idx % self._every_n_batches == 0:
@@ -222,11 +223,18 @@ class RSDClipCap(l.LightningModule):
 
         self._avg_metrics['val_loss'] = val_loss.item()
         self.log_dict(self._avg_metrics, prog_bar=True, on_step=True,
-                      on_epoch=True, logger=True, enable_graph=True)
+                      on_epoch=True, logger=True, enable_graph=True, batch_size=len(images))
         return val_loss
 
     def configure_optimizers(self) -> dict:
-        optimizer = torch.optim.AdamW(params=self._clipcap.parameters(), lr=self._clipcap_lr,
+
+        params = [{"params": self._clipcap.parameters()}]
+
+        if not self._freeze_clip_encoder:
+            params.append({"params": self._clip_encoder.student.parameters(),
+                           "lr": self._clip_encoder.lr})
+
+        optimizer = torch.optim.AdamW(params=params, lr=self._clipcap_lr,
                                       weight_decay=self._clipcap_weight_decay)
         lr_scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=self._clipcap_warmup_steps,
                                                        num_training_steps=self.trainer.estimated_stepping_batches)

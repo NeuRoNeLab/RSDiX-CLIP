@@ -35,7 +35,7 @@ def get_eval_images(annotations_file: str) -> List[str]:
     with open(annotations_file, "r") as f:
         data = json.loads(f.read())
 
-    eval_images = [image["filename"] for image in data["images"]]
+    eval_images = [image["filename"] for image in data["images"] if image["split"] == "test"]
     print(f"Retrieved {len(eval_images)} images")
     return eval_images
 
@@ -133,7 +133,7 @@ def get_splits_for_evaluation(annotations_files: Union[str, List[str]], img_dirs
         if use_splits:
             datasets_indices.append(dataloaders[0].dataset.indices)
         else:
-            datasets_indices.append(dataloaders[0].dataset.datasets[0].indices)
+            datasets_indices.append(dataloaders[0].dataset.indices)
 
     val_sets = []
 

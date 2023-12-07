@@ -302,3 +302,13 @@ class RSDClip(l.LightningModule):
             This is necessary in order to use PytorchLightning's Tuner.
         """
         self._lr = lr
+
+    @property
+    def student(self) -> CLIPModel:
+        """
+        Get the student model.
+
+        Returns:
+            CLIPModel: The current student model.
+        """
+        return self._student
