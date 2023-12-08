@@ -51,7 +51,7 @@ def eval_model(model: RSDClipCap, preprocessor: CLIPProcessor, args):
                         postfix=args.avg_metrics if not args.export_captions_file else None,
                         desc=f"Evaluating model, current metrics" \
                             if not args.export_captions_file and not args.no_evaluation
-                        else "Evaluating model, exporting captions")
+                        else "Generating captions")
 
     for i in progress_bar:
         img = preprocessor(images=ds[i][IMAGE_FIELD], truncation=True, padding="max_length", max_length=CLIP_MAX_LENGTH,
@@ -74,9 +74,6 @@ def eval_model(model: RSDClipCap, preprocessor: CLIPProcessor, args):
         if args.export_captions_file:
             args.captions.append(
                 {"filename": ds[i]["filename"], "preds": preds, "reference_captions": reference_captions})
-
-        if not args.no_evaluation:
-            progress_bar.set_description(f"Evaluating model, current metrics: {args.avg_metrics}")
 
 
 def main(args):
