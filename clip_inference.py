@@ -2,7 +2,7 @@ import argparse
 import torch
 
 from inference.inference import generate_and_store_clip_embeddings
-from models import CLIPWrapper
+from models import RSDClip
 
 
 def main():
@@ -20,7 +20,7 @@ def main():
     print("Loaded args: ", args)
     # Load the model
     print(f"Loading CLIP model from checkpoint: {args.checkpoint_path}")
-    model = CLIPWrapper.load_from_checkpoint(args.checkpoint_path)
+    model = RSDClip.load_from_checkpoint(args.checkpoint_path)
     print("Loaded CLIP model")
 
     # Generate the captions
