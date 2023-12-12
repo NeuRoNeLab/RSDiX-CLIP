@@ -4,7 +4,7 @@ import torch
 from torchvision import transforms as t
 
 from transformations import RandomSharpness
-from aac_metrics.functional import bleu, rouge_l, meteor, sbert_sim
+from aac_metrics.functional import bleu, rouge_l, meteor, sbert_sim, cider_d, spice
 
 
 IMAGE_DEFAULT_C = 3
@@ -52,13 +52,16 @@ METEOR: Final[str] = "meteor"
 ROUGE_L: Final[str] = "rouge_l"
 SBERT_SIM: Final[str] = "sbert_sim"
 BLEU: Final[str] = "bleu_"
+CIDER_D: Final[str] = "cider_d"
+SPICE: Final[str] = "spice"
 MIN_BLEU: Final[int] = 1
 MAX_BLEU: Final[int] = 4
-ALLOWED_METRICS = [METEOR, SBERT_SIM, ROUGE_L, BLEU, f'{BLEU}1', f'{BLEU}2', f'{BLEU}3', f'{BLEU}4']
+ALLOWED_METRICS = [METEOR, SBERT_SIM, ROUGE_L, f'{BLEU}1', f'{BLEU}2', f'{BLEU}3', f'{BLEU}4', SPICE]
 METRICS = {
     METEOR: meteor,
     SBERT_SIM: sbert_sim,
     ROUGE_L: rouge_l,
-    BLEU: bleu
+    BLEU: bleu,
+    SPICE: spice
 }
 CLIP_MAX_LENGTH = 77

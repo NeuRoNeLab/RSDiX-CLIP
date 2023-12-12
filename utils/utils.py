@@ -157,6 +157,8 @@ def load_model_checkpoint(model_class, checkpoint_path: str):
     try:
         if os.path.exists(checkpoint_path):
             return model_class.load_from_checkpoint(checkpoint_path)
+        else:
+            raise Exception(f"checkpoint file: '{checkpoint_path}' does not exist.")
     except FileNotFoundError:
         # Since Lightning saves the checkpoint with the current OS file separator, in case of OS switching,
         # if the checkpoint being loaded was instantiated with a valid "checkpoint_path", the FileNotFoundError
