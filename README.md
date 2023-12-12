@@ -52,7 +52,7 @@ This README provides a concise overview of the training and evaluation procedure
 - [Acknowledgements and references](#acknowledgements-and-references)
 
 # Training details 
-Both models were trained and fine-tuned on an NVIDIA GeForce RTX 4090 GPU with Tensor Cores on `cuda 11.8`. The operating system and deep learning platforms used were Windows 11 Pro, [Pytorch](https://pytorch.org/) 2.0.1, [Pytorch-Lightning](https://lightning.ai/) 2.0.4. Initial hyper-parameters were set using a combination of **grid searches** and manual tuning. They were then adapted using the **bayesian optimization** technique. 
+Both models were trained and fine-tuned on an NVIDIA GeForce RTX 4090 GPU with Tensor Cores on `cuda 11.8`. The operating system and deep learning platforms used were Windows 11 Pro, [Pytorch](https://pytorch.org/) 2.1.1, [Pytorch-Lightning](https://lightning.ai/) 2.0.4. Initial hyper-parameters were set using a combination of **grid searches** and manual tuning. They were then adapted using the **bayesian optimization** technique. 
 
 ## Datasets
 The following datasets were used in the training process: 
