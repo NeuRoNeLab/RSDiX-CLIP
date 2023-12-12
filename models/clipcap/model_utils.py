@@ -28,7 +28,7 @@ def compute_loss(model, tokens, prefix, mask) -> torch.Tensor:
 
 def remove_dots(captions: List[str]) -> List[str]:
     """
-    Remove extra periods from a list of captions.
+    Removes everything after the first period from a list of captions.
 
     Args:
         captions (List[str]): A list of caption strings.
@@ -43,9 +43,8 @@ def remove_dots(captions: List[str]) -> List[str]:
         ["Hello.", "This is a test."]
     """
     for i, text in enumerate(captions):
-        if re.match(r".*\.{4,}", text):
-            cleaned_txt = re.split(r"\.{4,}", text)[0]
-            captions[i] = cleaned_txt + "."
+        # if re.match(r"\.(.*)", text):
+        captions[i] = re.sub(r"\.(.*)", "", text) + "."
 
     return captions
 

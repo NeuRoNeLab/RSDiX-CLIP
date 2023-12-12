@@ -21,6 +21,7 @@ class CaptioningDataset(Dataset):
     """
     Custom PyTorch Dataset for the remote sensing datasets like RSICD, UCMD, RSITMD.
     """
+
     def __init__(self,
                  annotations_file: str,
                  img_dir: str,
@@ -178,7 +179,7 @@ class CaptioningDataModule(l.LightningDataModule):
         super().__init__()
 
         # check if type is the same, can't have str and list
-        if type(annotations_files) != type(img_dirs):
+        if type(annotations_files) is not type(img_dirs):
             raise Exception(f"annotations_files type '{type(annotations_files)}' is not equal to img_dirs' "
                             f"type {type(img_dirs)}.")
 
@@ -314,4 +315,3 @@ class CaptioningDataModule(l.LightningDataModule):
 
         encodings[RAW_CAPTION_FIELD] = ListWrapper(list(caption))
         return encodings
-

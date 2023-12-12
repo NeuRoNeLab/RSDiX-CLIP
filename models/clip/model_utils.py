@@ -81,7 +81,7 @@ def compute_teacher_targets(teacher_images_embs, teacher_text_embs, ii_coeff, tt
         tt_coeff (float): Coefficient for text-text similarity in teacher targets.
         sinkhorn_lambda (float): Sinkhorn regularization parameter.
         sinkhorn_iter (int): Number of iterations for Sinkhorn distance computation.
-        remove_diag (bool): Flag to remove diagonal elements when computing teacher targets.
+        remove_diag (float): Flag to remove diagonal elements when computing teacher targets.
 
     Returns:
         images_target_prob (torch.Tensor): Target probabilities for images.

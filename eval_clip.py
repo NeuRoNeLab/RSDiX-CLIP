@@ -9,10 +9,11 @@ from torchvision.io import read_image
 from tqdm import tqdm
 from transformers import CLIPProcessor
 
-from models import CLIPWrapper
+from models import RSDClip
 from evaluation.utils import get_eval_images, get_model_basename, get_classes
+from utils import load_model_checkpoint
 
-K_VALUES = [1, 3, 5, 10]
+K_VALUES = [1, 2, 3, 5, 10]
 
 
 def predict_image(img_file, model, processor, eval_sentences, classes_names, k, imgs_dir):
@@ -21,7 +22,7 @@ def predict_image(img_file, model, processor, eval_sentences, classes_names, k, 
 
     Args:
         img_file (str): The filename of the image.
-        model (CLIPWrapper): The pre-trained CLIP model.
+        model (RSDClip): The pre-trained CLIP model.
         processor (CLIPProcessor): The CLIP processor for data preprocessing.
         eval_sentences (list of str): Evaluation sentences corresponding to class names.
         classes_names (list of str): List of class names.
@@ -32,7 +33,15 @@ def predict_image(img_file, model, processor, eval_sentences, classes_names, k, 
         str: The true label of the image.
         list of tuple: A list of top-K predicted class-label and probability pairs.
         """
-    label = img_file.split("_")[0]
+
+    if os.sep in img_file:
+        label = img_file.split(os.sep)[0]
+    else:
+        parts = img_file.split("_")
+        label = "_".join(parts[:-1])
+
+    label = label.lower()
+
     img_file = os.path.join(imgs_dir, img_file)
 
     img_ext = img_file.split(".")[-1]
@@ -63,7 +72,7 @@ def predict(model, processor, eval_images, classes_names, model_scores_file, img
     Predicts classes for a list of evaluation images using a CLIP model and computes scores.
 
     Args:
-        model (CLIPWrapper): The pre-trained CLIP model.
+        model (RSDClip): The pre-trained CLIP model.
         processor (CLIPProcessor): The CLIP processor for data preprocessing.
         eval_images (list of str): List of image filenames to evaluate.
         classes_names (list of str): List of class names.
@@ -104,7 +113,7 @@ def compute_scores(scores_file, model_scores_file, model_basename):
             cols = line.strip().split('\t')
             label = cols[1]
             preds = []
-            for i in range(2, 22, 2):
+            for i in range(2, min(len(cols), 22), 2):
                 preds.append(cols[i])
             for kid, k in enumerate(K_VALUES):
                 preds_k = set(preds[0:k])
@@ -124,17 +133,17 @@ def main(args):
     print("Evaluating CLIP: Starting evaluation...")
     print(f"Loading checkpoint: {args.model_pth} and processor: {args.processor}")
 
-    model = CLIPWrapper.load_from_checkpoint(args.model_pth)
+    model = load_model_checkpoint(RSDClip, args.model_pth)
     processor = CLIPProcessor.from_pretrained(args.processor)
 
-    model_scores_file = os.path.join(args.scores_dir, get_model_basename(args.model_pth)) + ".tsv"
+    model_basename = args.model_basename if args.model_basename else get_model_basename(args.model_pth)
+    model_scores_file = os.path.join(args.scores_dir, model_basename) + ".tsv"
 
     classes_names = get_classes(imgs_dir=args.imgs_dir)
     eval_images = get_eval_images(annotations_file=args.annotations_file)
 
     predict(model, processor, eval_images, classes_names, model_scores_file, args.imgs_dir)
-    compute_scores(os.path.join(args.scores_dir, args.scores_file), model_scores_file,
-                   get_model_basename(args.model_pth))
+    compute_scores(os.path.join(args.scores_dir, args.scores_file), model_scores_file, model_basename)
 
     print("Evaluation COMPLETED!")
 
@@ -149,5 +158,6 @@ if __name__ == "__main__":
                         help="Processor from CLIPProcessor.from_pretrained to preprocess data")
     parser.add_argument("--annotations_file", type=str, required=True)
     parser.add_argument("--imgs_dir", type=str, required=True)
+    parser.add_argument("--model_basename", type=str, default=None)
 
     main(parser.parse_args())

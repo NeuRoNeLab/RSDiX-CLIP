@@ -1,2 +1,2 @@
-from .clicap import *
+from .clipcap import *
 from .caption_generation import *

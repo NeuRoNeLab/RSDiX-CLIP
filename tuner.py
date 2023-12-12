@@ -5,7 +5,8 @@ from lightning.pytorch.trainer import Trainer
 from lightning.pytorch.tuner import Tuner
 
 from datasets import CaptioningDataModule
-from models import CLIPWrapper, CLIPCapWrapper
+from models import RSDClip, RSDClipCap
+from utils import enable_matmul_precision
 
 
 def main(args):
@@ -13,7 +14,7 @@ def main(args):
     if args.num_workers > 1:
         os.environ["TOKENIZERS_PARALLELISM"] = '1'
 
-    model = CLIPWrapper() if args.finetune_clipcap is False else CLIPCapWrapper(prefix_length=args.prefix_length)
+    model = RSDClip() if args.finetune_clipcap is False else RSDClipCap(prefix_length=args.prefix_length)
     datamodule = CaptioningDataModule(annotations_files=args.annotations_files, img_dirs=args.img_dirs,
                                       batch_size=args.batch_size, num_workers=args.num_workers,
                                       use_gpt2_tokenizer=args.finetune_clipcap)
@@ -43,14 +44,16 @@ if __name__ == "__main__":
     parser.add_argument("--results_file", type=str, default="results.txt",
                         help="File where tuner's results will be saved")
     parser.add_argument("--annotations_files", nargs='*',
-                        default=["./data/dataset_rsicd.json", "./data/dataset_ucmd.json", "./data/dataset_rsitmd.json",
-                                 "./data/dataset_nais.json"])
+                        default=["./data/RSICD/dataset_rsicd.json", "./data/UCMD/dataset_ucmd.json",
+                                 "./data/RSITMD/dataset_rsitmd.json",
+                                 "./data/NAIS/dataset_nais.json", "./data/NWPU-Captions/dataset_nwpu.json"])
     parser.add_argument("--img_dirs", nargs='*',
                         default=["./data/RSICD/RSICD_images", "./data/UCMD/UCMD_images", "./data/RSITMD/RSITMD_images",
-                                 "./data/NAIS/NAIS_images"])
+                                 "./data/NAIS/NAIS_images", "./data/NWPU-Captions/NWPU-Captions_images"])
     parser.add_argument("--num_workers", type=int, default=0)
     parser.add_argument("--batch_size", type=int, default=2)
-    parser.add_argument("--finetune_clipcap", type=bool, default=False)
+    parser.add_argument("--finetune_clipcap", default=False, action="store_true")
     parser.add_argument("--prefix_length", type=int, default=40)
 
+    enable_matmul_precision()
     main(parser.parse_args())

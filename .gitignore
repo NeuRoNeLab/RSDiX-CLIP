@@ -5,14 +5,23 @@
 ./.DS_Store
 /.DS_Store
 
+# datasets
+/data
+
+# wandb
+/wandb
+
 /config.yaml
 /clipcap_config.yaml
-/clipcap_config.yaml
+/clip_config.yaml
+/_inferenceimages
 /eval_results
+/*.pt
 /results.txt
 /$HOME
 /old_bak
 /lightning_logs_clipcap
+/lightning_logs
 
 ### Python template
 # Byte-compiled / optimized / DLL files
@@ -198,8 +207,3 @@ fabric.properties
 
 # idea folder, uncomment if you don't need it
 .idea
-
-# datasets
-/data
-
-/lightning_logs
