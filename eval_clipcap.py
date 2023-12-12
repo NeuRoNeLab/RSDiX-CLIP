@@ -66,10 +66,10 @@ def eval_model(model: RSDClipCap, preprocessor: CLIPProcessor, args):
                                  use_beam_search=args.use_beam_search)
 
         if not args.no_evaluation:
-            compute_captioning_metrics(preds=preds, reference_captions=reference_captions,
-                                       avg_metrics=args.avg_metrics, i=i,
-                                       no_meteor_count=args.no_meteor_count)
-            progress_bar.set_postfix({key: "{:.3f}".format(value) for key, value in args.avg_metrics.items()})
+            args.avg_metrics = compute_captioning_metrics(preds=preds, reference_captions=reference_captions,
+                                                          avg_metrics=args.avg_metrics, i=i)
+            progress_bar.set_postfix({key: "{:.3f}".format(value) for key, value in args.avg_metrics.items() \
+                                      if key != "no_meteor_count"})
 
         if args.export_captions_file:
             args.captions.append(
@@ -78,7 +78,7 @@ def eval_model(model: RSDClipCap, preprocessor: CLIPProcessor, args):
 
 def main(args):
     args.avg_metrics = {metric: 0.0 for metric in args.metrics}
-    args.no_meteor_count = 0
+    args.avg_metrics["no_meteor_count"] = 0
 
     if METEOR in args.metrics:
         os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -141,10 +141,11 @@ def main(args):
         for i in progress_bar:
             args.avg_metrics = compute_captioning_metrics(preds=data[i]["preds"],
                                                           reference_captions=data[i]["reference_captions"],
-                                                          avg_metrics=args.avg_metrics, i=i,
-                                                          no_meteor_count=args.no_meteor_count)
-            progress_bar.set_postfix({key: "{:.3f}".format(value) for key, value in args.avg_metrics.items()})
+                                                          avg_metrics=args.avg_metrics, i=i)
+            progress_bar.set_postfix({key: "{:.3f}".format(value) for key, value in args.avg_metrics.items() \
+                                      if key != "no_meteor_count"})
 
+        del args.avg_metrics["no_meteor_count"]
         export_metrics(avg_metrics=args.avg_metrics, scores_dir=args.scores_dir, scores_file=args.scores_file,
                        model_basename=model_basename)
 

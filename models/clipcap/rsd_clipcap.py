@@ -4,6 +4,7 @@ import lightning as l
 import torch
 from transformers import GPT2Tokenizer, get_linear_schedule_with_warmup
 
+from evaluation.utils import compute_captioning_metrics
 from models.clip import RSDClip
 from models.clipcap import ClipCaptionModel, generate_caption
 from models.clipcap import MappingType
@@ -102,7 +103,7 @@ class RSDClipCap(l.LightningModule):
             metrics = [metrics]
 
         for _ in metrics:
-            if _ not in ALLOWED_METRICS:
+            if _ not in ALLOWED_METRICS and _ != "no_meteor_count":
                 raise Exception(f"metric `{_} not allowed. ALLOWED METRICS: f{ALLOWED_METRICS}")
 
         if checkpoint_path is not None:
@@ -160,7 +161,13 @@ class RSDClipCap(l.LightningModule):
         self._avg_metrics_idx = 0
 
         if METEOR in self._metrics:
-            self._no_meteor_count = 0
+            if isinstance(self._metrics, list):
+                try:
+                    self._avg_metrics["no_meteor_count"] = self._metrics[self._metrics.index("no_meteor_count")]
+                except ValueError:
+                    self._avg_metrics["no_meteor_count"] = 0
+            else:
+                self._avg_metrics["no_meteor_count"] = 0
 
         if pad_token is not None:
             self._gpt2_tokenizer.pad_token = pad_token
@@ -200,29 +207,9 @@ class RSDClipCap(l.LightningModule):
                                      model=self._clipcap,
                                      use_beam_search=self._use_beam_search)
 
-            for metric in self._metrics:
-                if metric == METEOR:
-                    try:
-                        value, _ = METRICS[metric](candidates=preds, mult_references=raw_captions)
-                        value = value[metric].item()
-                        self._avg_metrics[METEOR] = self._avg_metrics[metric] + 1 / (
-                                self._avg_metrics_idx + 1 - self._no_meteor_count) * (
-                                                            value - self._avg_metrics[metric])
-                    except ValueError as e:
-                        print(f"Meteor could not be computed due to error {e.with_traceback(None)} "
-                              f"on the couple: ({preds}, {raw_captions}). "
-                              f"Increasing the no_meteor_count to {self._no_meteor_count}")
-                        self._no_meteor_count += 1
-                else:
-                    if BLEU in metric:
-                        j = int(metric.split("_")[1])
-                        value, _ = METRICS[BLEU](candidates=preds, mult_references=raw_captions, n=j)
-                    else:
-                        value, _ = METRICS[metric](candidates=preds, mult_references=raw_captions)
-                    value = value[metric].item()
-                    self._avg_metrics[metric] = self._avg_metrics[metric] + 1 / (self._avg_metrics_idx + 1) * (
-                            value - self._avg_metrics[metric])
-                self._avg_metrics_idx = self._avg_metrics_idx + 1
+            self._avg_metrics = compute_captioning_metrics(preds=preds, reference_captions=raw_captions,
+                                                           avg_metrics=self._avg_metrics, i=self._avg_metrics_idx)
+            self._avg_metrics_idx = self._avg_metrics_idx + len(self._metrics)
 
         self._avg_metrics['val_loss'] = val_loss.item()
         self.log_dict(self._avg_metrics, prog_bar=True, on_step=True,
