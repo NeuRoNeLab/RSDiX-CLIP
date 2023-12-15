@@ -52,7 +52,7 @@ def get_classes(imgs_dir: str) -> List[str]:
             break
         else:
             for filename in files:
-                if filename.find("_") > -1:
+                if filename.find("_") > 0:
                     class_names.add(filename.lower().split("_")[0])
 
     class_names = sorted(list(class_names))

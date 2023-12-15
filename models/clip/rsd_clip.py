@@ -4,7 +4,7 @@ import yaml
 import copy
 
 from transformers import CLIPModel
-from typing import Optional
+from typing import Optional, Dict, Any
 
 from loss import DistillationLoss
 from sentence_transformers import SentenceTransformer
@@ -194,7 +194,7 @@ class RSDClip(l.LightningModule):
         # Log metrics
         self.log_dict({'loss': loss.item(),
                        'mse_sentence_transformer': mse,
-                       'acc': accuracy},
+                       'acc': accuracy}, sync_dist=True,
                       prog_bar=True, on_step=True, on_epoch=True, logger=True, enable_graph=True)
 
         return loss
@@ -211,7 +211,7 @@ class RSDClip(l.LightningModule):
 
         self.log_dict({'val_loss': outputs.loss.item(),
                        'val_mse_sentence_transformer': mse,
-                       'val_acc': accuracy},
+                       'val_acc': accuracy}, sync_dist=True,
                       prog_bar=True, on_step=True, on_epoch=True, logger=True, enable_graph=True)
 
         return outputs.loss
@@ -255,7 +255,7 @@ class RSDClip(l.LightningModule):
         self._ema_model.copy_to(self._teacher.parameters())
 
     def configure_optimizers(self) -> dict:
-        optimizer = torch.optim.AdamW(params=self._student.parameters(), lr=self._lr, eps=self._eps,
+        optimizer = torch.optim.AdamW(params=self.trainer.model.parameters(), lr=self._lr, eps=self._eps,
                                       betas=self._betas, weight_decay=self._weight_decay)
 
         if self._use_warmup == "cosine":
@@ -276,6 +276,16 @@ class RSDClip(l.LightningModule):
                 "scheduler": lr_scheduler
             }
         }
+
+    # https://github.com/Lightning-AI/pytorch-lightning/issues/17798
+    def on_save_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
+        """
+        Tentative fix for FSDP checkpointing issue
+        """
+        if not checkpoint.get("state_dict", None):
+            state_dict = self.trainer.model.state_dict()
+            checkpoint["state_dict"] = state_dict
+        return super().on_save_checkpoint(checkpoint)
 
     @property
     def lr(self) -> float:
@@ -312,3 +322,13 @@ class RSDClip(l.LightningModule):
             CLIPModel: The current student model.
         """
         return self._student
+
+    @property
+    def ema_model(self) -> ExponentialMovingAverage:
+        """
+        Get the EMA.
+
+        Returns:
+            ExponentialMovingAverage: The current EMA.
+        """
+        return self._ema_model

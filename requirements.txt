@@ -64,7 +64,7 @@ jsonschema==4.18.4
 jsonschema-specifications==2023.7.1
 kiwisolver==1.4.4
 lazy-loader==0.3
-lightning==2.0.4
+lightning==2.2.0
 lightning-api-access==0.0.5
 lightning-cloud==0.5.37
 lightning-fabric==2.0.6
@@ -157,6 +157,7 @@ uc-micro-py==1.0.2
 urllib3==1.26.13
 uvicorn==0.23.1
 validators==0.20.0
+wheel==0.42.0
 wandb==0.16.0
 watchdog==3.0.0
 wcwidth==0.2.6

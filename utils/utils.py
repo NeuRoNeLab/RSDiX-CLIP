@@ -156,7 +156,9 @@ def enable_matmul_precision(precision: str = "high"):
 def load_model_checkpoint(model_class, checkpoint_path: str):
     try:
         if os.path.exists(checkpoint_path):
-            return model_class.load_from_checkpoint(checkpoint_path)
+            model = model_class.load_from_checkpoint(checkpoint_path)
+
+            return model.to(torch.device('cuda')) if torch.cuda.is_available() and model.device.type == "cpu" else model
         else:
             raise Exception(f"checkpoint file: '{checkpoint_path}' does not exist.")
     except FileNotFoundError:
@@ -172,7 +174,8 @@ def load_model_checkpoint(model_class, checkpoint_path: str):
 
         # load state dict
         model.load_state_dict(ckpt["state_dict"])
-        return model
+
+        return model.to(torch.device('cuda')) if torch.cuda.is_available() and model.device.type == "cpu" else model
 
 
 class ListWrapper(list):
