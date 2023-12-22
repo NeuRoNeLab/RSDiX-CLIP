@@ -214,6 +214,7 @@ class RSDClipCap(l.LightningModule):
         self._avg_metrics['val_loss'] = val_loss.item()
         self.log_dict(self._avg_metrics,  sync_dist=True, prog_bar=True, on_step=True,
                       on_epoch=True, logger=True, enable_graph=True, batch_size=len(images))
+        del self._avg_metrics['val_loss']
         return val_loss
 
     def configure_optimizers(self) -> dict:
