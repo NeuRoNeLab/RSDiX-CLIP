@@ -3,7 +3,7 @@ import os
 from typing import List, Union
 
 from datasets import CaptioningDataModule, CaptioningDataset
-from utils import IMAGE_FIELD, RAW_CAPTION_FIELD, METEOR, BLEU, METRICS
+from utils import IMAGE_FIELD, RAW_CAPTION_FIELD, METEOR, BLEU, METRICS, inc_var
 
 
 def get_model_basename(model):
@@ -52,7 +52,7 @@ def get_classes(imgs_dir: str) -> List[str]:
             break
         else:
             for filename in files:
-                if filename.find("_") > -1:
+                if filename.find("_") > 0:
                     class_names.add(filename.lower().split("_")[0])
 
     class_names = sorted(list(class_names))
@@ -142,7 +142,7 @@ def get_splits_for_evaluation(annotations_files: Union[str, List[str]], img_dirs
 
 
 def compute_captioning_metrics(preds: list[str], reference_captions: list[list[str]], avg_metrics: dict,
-                               i: int):
+                               i: int, compute_var: bool = False):
     for metric in avg_metrics:
 
         if metric == "no_meteor_count":
@@ -152,14 +152,27 @@ def compute_captioning_metrics(preds: list[str], reference_captions: list[list[s
             try:
                 value, _ = METRICS[metric](candidates=preds, mult_references=reference_captions)
                 value = value[metric].item()
-                avg_metrics[METEOR] = (avg_metrics[metric] + 1 / (i + 1 - avg_metrics["no_meteor_count"])
-                                       * (value - avg_metrics[metric]))
+                prev_mean = avg_metrics[METEOR] if compute_var is False else avg_metrics[METEOR]["mean"]
+                mean = (prev_mean + 1 / (i + 1 - avg_metrics["no_meteor_count"])
+                        * (value - prev_mean))
+                if compute_var:
+                    var = inc_var(value, n=i + 1,
+                                  prev_var=avg_metrics[METEOR]["var"],
+                                  prev_mean=prev_mean)
+
+                    avg_metrics[METEOR]["means"].append(mean)
+                    avg_metrics[METEOR]["vars"].append(var)
+
+                    avg_metrics[METEOR] = {"mean": mean, "var": var,
+                                           "means": avg_metrics[METEOR]["means"],
+                                           "vars": avg_metrics[METEOR]["vars"]}
+                else:
+                    avg_metrics[METEOR] = mean
             except ValueError as e:
                 avg_metrics["no_meteor_count"] += 1
                 print(f"Meteor could not be computed due to error {e.with_traceback(None)} "
                       f"on the couple: ({preds}, {reference_captions}). "
                       f"Increasing the no_meteor_count to {avg_metrics['no_meteor_count']}")
-
         else:
             if BLEU in metric:
                 j = int(metric.split("_")[1])
@@ -167,6 +180,20 @@ def compute_captioning_metrics(preds: list[str], reference_captions: list[list[s
             else:
                 value, _ = METRICS[metric](candidates=preds, mult_references=reference_captions)
             value = value[metric].item()
-            avg_metrics[metric] = avg_metrics[metric] + 1 / (i + 1) * (value - avg_metrics[metric])
+            prev_mean = avg_metrics[metric] if compute_var is False else avg_metrics[metric]["mean"]
+            mean = prev_mean + 1 / (i + 1) * (value - prev_mean)
+            if compute_var:
+                var = inc_var(value, n=i + 1,
+                              prev_var=avg_metrics[metric]["var"],
+                              prev_mean=prev_mean)
+
+                avg_metrics[metric]["means"].append(mean)
+                avg_metrics[metric]["vars"].append(var)
+
+                avg_metrics[metric] = {"mean": mean, "var": var,
+                                       "means": avg_metrics[metric]["means"],
+                                       "vars": avg_metrics[metric]["vars"]}
+            else:
+                avg_metrics[metric] = mean
 
     return avg_metrics

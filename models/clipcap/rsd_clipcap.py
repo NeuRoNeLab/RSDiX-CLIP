@@ -185,8 +185,8 @@ class RSDClipCap(l.LightningModule):
         prefix = prefix / prefix.norm(p=2, dim=-1, keepdim=True)
         loss = compute_loss(self._clipcap, tokens, prefix, mask)
 
-        self.log_dict({'loss': loss.item()}, prog_bar=True, on_step=True, on_epoch=True, logger=True,
-                      enable_graph=True, batch_size=len(images))
+        self.log_dict({'loss': loss.item()}, sync_dist=True, prog_bar=True, on_step=True, on_epoch=True,
+                      logger=True, enable_graph=True, batch_size=len(images))
 
         return loss
 
@@ -212,8 +212,9 @@ class RSDClipCap(l.LightningModule):
             self._avg_metrics_idx = self._avg_metrics_idx + len(self._metrics)
 
         self._avg_metrics['val_loss'] = val_loss.item()
-        self.log_dict(self._avg_metrics, prog_bar=True, on_step=True,
+        self.log_dict(self._avg_metrics,  sync_dist=True, prog_bar=True, on_step=True,
                       on_epoch=True, logger=True, enable_graph=True, batch_size=len(images))
+        del self._avg_metrics['val_loss']
         return val_loss
 
     def configure_optimizers(self) -> dict:

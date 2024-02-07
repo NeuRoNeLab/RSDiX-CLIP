@@ -6,6 +6,13 @@ import torch.cuda
 import xmltodict
 
 
+# https://math.stackexchange.com/questions/102978/incremental-computation-of-standard-deviation
+def inc_var(value: float, n: int = 1, prev_var: float = 0.0, prev_mean: float = 0.0) -> float:
+    if n == 1:
+        return 0.0
+    return (n - 2)/(n - 1) * prev_var + 1 / n * (value - prev_mean)**2
+
+
 def get_splits(n_instances: int, train_split_percentage: float, val_split_percentage: float) -> Tuple[int, int, int]:
     """
     Calculate dataset splits based on specified percentages.
@@ -156,7 +163,9 @@ def enable_matmul_precision(precision: str = "high"):
 def load_model_checkpoint(model_class, checkpoint_path: str):
     try:
         if os.path.exists(checkpoint_path):
-            return model_class.load_from_checkpoint(checkpoint_path)
+            model = model_class.load_from_checkpoint(checkpoint_path)
+
+            return model.to(torch.device('cuda')) if torch.cuda.is_available() and model.device.type == "cpu" else model
         else:
             raise Exception(f"checkpoint file: '{checkpoint_path}' does not exist.")
     except FileNotFoundError:
@@ -172,7 +181,8 @@ def load_model_checkpoint(model_class, checkpoint_path: str):
 
         # load state dict
         model.load_state_dict(ckpt["state_dict"])
-        return model
+
+        return model.to(torch.device('cuda')) if torch.cuda.is_available() and model.device.type == "cpu" else model
 
 
 class ListWrapper(list):

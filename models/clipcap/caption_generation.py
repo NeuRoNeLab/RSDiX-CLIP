@@ -134,7 +134,7 @@ def generate2(
 
     with torch.no_grad():
 
-        for entry_idx in trange(entry_count):
+        for entry_idx in range(entry_count):
             if embed is not None:
                 generated = embed
             else:

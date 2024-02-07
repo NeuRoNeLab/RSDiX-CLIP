@@ -21,7 +21,7 @@ class ExponentialMovingAverage:
         self.decay = decay
         self.num_updates = 0 if use_num_updates else None
         self.shadow_params = [
-            p.clone().detach().cuda() for p in parameters
+            p.clone().detach() for p in parameters
         ]
         self.collected_params = []
 
