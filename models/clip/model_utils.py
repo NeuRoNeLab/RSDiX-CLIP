@@ -1,6 +1,8 @@
 import torch
 
 from typing import final
+
+from lightning import Callback
 from sentence_transformers.util import cos_sim
 
 REDUCTIONS: final = frozenset(["mean", "average", "avg", "sum", "add", "none"])
@@ -211,3 +213,11 @@ def compute_accuracy(images_logits: torch.Tensor, batch_size: int):
     acc_t = (torch.argmax(images_logits, 0) == ground_truth).sum()
 
     return (acc_i + acc_t) / 2 / batch_size
+
+
+class MoveEmaCallback(Callback):
+    def on_train_start(self, trainer, pl_module):
+        ema_params = pl_module.ema_model.shadow_params
+
+        for idx, p in enumerate(ema_params):
+            pl_module.ema_model.shadow_params[idx] = pl_module.ema_model.shadow_params[idx].to(pl_module.device)
