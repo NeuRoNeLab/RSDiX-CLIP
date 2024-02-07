@@ -1,11 +1,10 @@
 from typing import Final
 
 import torch
+from aac_metrics.functional import bleu, rouge_l, meteor, sbert_sim, spice
 from torchvision import transforms as t
 
 from transformations import RandomSharpness
-from aac_metrics.functional import bleu, rouge_l, meteor, sbert_sim, cider_d, spice
-
 
 IMAGE_DEFAULT_C = 3
 IMAGE_DEFAULT_W = 224

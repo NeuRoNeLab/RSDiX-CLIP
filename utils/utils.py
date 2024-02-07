@@ -6,6 +6,13 @@ import torch.cuda
 import xmltodict
 
 
+# https://math.stackexchange.com/questions/102978/incremental-computation-of-standard-deviation
+def inc_var(value: float, n: int = 1, prev_var: float = 0.0, prev_mean: float = 0.0) -> float:
+    if n == 1:
+        return 0.0
+    return (n - 2)/(n - 1) * prev_var + 1 / n * (value - prev_mean)**2
+
+
 def get_splits(n_instances: int, train_split_percentage: float, val_split_percentage: float) -> Tuple[int, int, int]:
     """
     Calculate dataset splits based on specified percentages.
