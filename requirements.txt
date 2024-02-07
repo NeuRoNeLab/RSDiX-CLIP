@@ -96,6 +96,7 @@ nvidia-cusparse-cu12==12.1.0.106
 nvidia-nccl-cu12==2.18.1
 nvidia-nvjitlink-cu12==12.3.101
 nvidia-nvtx-cu12==12.1.105
+nlpaug==1.1.11
 omegaconf==2.3.0
 ordered-set==4.1.0
 packaging==23.1
