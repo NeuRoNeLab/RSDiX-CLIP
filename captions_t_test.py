@@ -47,7 +47,8 @@ def main(args):
         os.makedirs(args.output_dir)
 
     annotations_file_basename = os.path.basename(args.annotations_file)
-    modified_annotations_filename = os.path.splitext(os.path.basename(annotations_file_basename))[0] + "_synonyms.json"
+    modified_annotations_filename = (os.path.splitext(os.path.basename(annotations_file_basename))[0]
+                                     + f"_synonyms_aug_max_{args.aug_max}.json")
 
     with open(os.path.join(args.output_dir, modified_annotations_filename), "w") as fp:
         json.dump(modified_annotations, fp)
@@ -86,11 +87,11 @@ def main(args):
         hypotheses[metric]["accepted"] = int(hypotheses[metric]["p_value"] / 2 < args.alpha)
 
     export_metrics(means, args.output_dir, args.output_file,
-                   annotations_file_basename + "_mean")
+                   annotations_file_basename + f"_mean_aug_max_{args.aug_max}")
     export_metrics(stds, args.output_dir, args.output_file,
-                   annotations_file_basename + "_std")
+                   annotations_file_basename + f"_std_aug_max_{args.aug_max}")
 
-    with open(os.path.join(args.output_dir, annotations_file_basename + "_hypotheses.json"), "w") as fp:
+    with open(os.path.join(args.output_dir, annotations_file_basename + f"_hypotheses_aug_max_{args.aug_max}.json"), "w") as fp:
         json.dump(hypotheses, fp, indent=5)
 
 
