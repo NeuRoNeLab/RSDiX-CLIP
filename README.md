@@ -19,7 +19,7 @@
 <br>
 
 # Remote Sensing Captioning Transformer
-Welcome to the Remote Sensing Captioning Transformer project! This repository hosts a Transformer-based solution for generating captions for remote sensing images.
+Welcome to the RSDiX-CLIP project! This repository hosts a custom CLIP model fine-tuned on remote sensing data using an additional self-distillation loss to mitigate intra-class similarities.
 Specifically, this project utilizes two models: 
 1. **RSD-CLIP**, a fine-tuned [CLIP transformer model](https://huggingface.co/transformers/model_doc/clip.html#transformers.CLIPModel)
 2. **RSD-CLIPCap**, A fine-tuned CLIP-based captioning model similar to CLIPCap[^4] that integrates the fine-tuned CLIP transformer model's vision encoder. 
