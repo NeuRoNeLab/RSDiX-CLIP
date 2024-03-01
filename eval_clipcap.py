@@ -7,7 +7,7 @@ from tqdm import tqdm
 from transformers import CLIPProcessor
 
 from evaluation.utils import get_model_basename, get_splits_for_evaluation, compute_captioning_metrics
-from models import RSDClipCap
+from models import RSDiXClipCap
 from models.clipcap import generate_caption
 from utils import IMAGE_FIELD, CLIP_MAX_LENGTH, RAW_CAPTION_FIELD, ALLOWED_METRICS, load_model_checkpoint, METEOR
 
@@ -28,12 +28,12 @@ def export_metrics(avg_metrics, scores_dir, scores_file, model_basename):
         msf.write("{:s}\t{:s}\n".format(model_basename, metrics_str))
 
 
-def eval_model(model: RSDClipCap, preprocessor: CLIPProcessor, args):
+def eval_model(model: RSDiXClipCap, preprocessor: CLIPProcessor, args):
     """
     Evaluates the performance of the CLIPCapWrapper on a given dataset.
 
     Args:
-        model (RSDClipCap): The CLIPCapWrapper to be evaluated.
+        model (RSDiXClipCap): The CLIPCapWrapper to be evaluated.
         preprocessor (CLIPProcessor): The CLIPProcessor to preprocess the image with.
         args (argparse.Namespace): The command-line arguments containing the following:
             - metrics (List[str]): List of evaluation metrics to compute (e.g., METEOR, SBERT_SIM, ROUGE_L, BLEU1,
@@ -110,7 +110,7 @@ def main(args):
 
         print(f"Loading checkpoint: {args.model_pth} and processor: {args.processor}")
 
-        model = load_model_checkpoint(RSDClipCap, args.model_pth)
+        model = load_model_checkpoint(RSDiXClipCap, args.model_pth)
         preprocessor = CLIPProcessor.from_pretrained(args.processor)
         model_basename = args.model_basename if args.model_basename is not None else get_model_basename(args.model_pth)
 

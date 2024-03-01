@@ -231,15 +231,15 @@ To train and finetune RSD-CLIP, follow the instructions below:
       - `--data.use_gpt2_tokenizer (bool)`: Whether to use GPT2-Tokenizer for tokenization. True if training ClipCap.
 4. Here is an example command to run this script:
 ```shell
-    python train_finetune_clip.py fit --data.annotations_file data/RSICD/dataset_rsicd.json --data.img_dirs data/RSICD/RSICD_images --model.lr 1e-05 --model.weight_decay 0.01
+    python train_finetune_rsidx_clip.py fit --data.annotations_file data/RSICD/dataset_rsicd.json --data.img_dirs data/RSICD/RSICD_images --model.lr 1e-05 --model.weight_decay 0.01
 ```
 4. Alternatively, you can modify the parameters values in the `clip_config.yaml` and run the following command:
 ```shell 
-   python train_finetune_clip.py fit --config clip_config.yaml 
+   python train_finetune_rsidx_clip.py fit --config clip_config.yaml 
 ```
 5. To configure the callable parameters, you must specify the class path either through the CLI or within the `clip_config.yaml` file. For example: 
 ```shell 
-  python train_finetune_clip.py fit --config clip_config.yaml --data.img_transform torchvision.transforms.Pad
+  python train_finetune_rsidx_clip.py fit --config clip_config.yaml --data.img_transform torchvision.transforms.Pad
 ```
 6. For major information, please refer to [Configure hyperparameters from the CLI](https://lightning.ai/docs/pytorch/stable/cli/lightning_cli_advanced.html).
 ## Training and fine-tuning RSD-CLIPCap 
@@ -307,15 +307,15 @@ To train and finetune RSD-CLIPCap, follow the instructions below:
        - `--data.use_gpt2_tokenizer (bool)`: Whether to use GPT2-Tokenizer for tokenization. True if training ClipCap.
 4. Here is an example command to run this script:
 ```shell
-    python train_clipcap.py fit --data.annotations_file data/RSICD/dataset_rsicd.json --data.img_dirs data/RSICD/RSICD_images --model.clipcap_lr 1e-05 --model.clipcap_weight_decay 0.01
+    python train_rsidx_clipcap.py fit --data.annotations_file data/RSICD/dataset_rsicd.json --data.img_dirs data/RSICD/RSICD_images --model.clipcap_lr 1e-05 --model.clipcap_weight_decay 0.01
 ```
 4. Alternatively, you can modify the parameters values in the `clip_config.yaml` and run the following command:
 ```shell 
-   python train_clipcap.py fit --config clipcap_config.yaml 
+   python train_rsidx_clipcap.py fit --config clipcap_config.yaml 
 ```
 5. To configure the callable parameters, you must specify the class path either through the CLI or within the `clipcap_config.yaml` file. For example: 
 ```shell 
-  python train_clipcap.py fit --config clipcap_config.yaml --data.img_transform torchvision.transforms.Pad
+  python train_rsidx_clipcap.py fit --config clipcap_config.yaml --data.img_transform torchvision.transforms.Pad
 ```
 6. For major information, please refer to [Configure hyperparameters from the CLI](https://lightning.ai/docs/pytorch/stable/cli/lightning_cli_advanced.html).
 ## Running Bayesian Optimization

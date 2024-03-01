@@ -1,4 +1,4 @@
-script: train_finetune_clip.py
+script: train_finetune_rsidx_clip.py
 config_file: clip_config.yaml
 attr_keys:
   model:

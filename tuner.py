@@ -5,7 +5,7 @@ from lightning.pytorch.trainer import Trainer
 from lightning.pytorch.tuner import Tuner
 
 from datasets import CaptioningDataModule
-from models import RSDClip, RSDClipCap
+from models import RSDiXClip, RSDiXClipCap
 from utils import enable_matmul_precision
 
 
@@ -14,7 +14,7 @@ def main(args):
     if args.num_workers > 1:
         os.environ["TOKENIZERS_PARALLELISM"] = '1'
 
-    model = RSDClip() if args.finetune_clipcap is False else RSDClipCap(prefix_length=args.prefix_length)
+    model = RSDiXClip() if args.finetune_clipcap is False else RSDiXClipCap(prefix_length=args.prefix_length)
     datamodule = CaptioningDataModule(annotations_files=args.annotations_files, img_dirs=args.img_dirs,
                                       batch_size=args.batch_size, num_workers=args.num_workers,
                                       use_gpt2_tokenizer=args.finetune_clipcap)
