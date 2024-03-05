@@ -5,15 +5,15 @@ import torch
 from transformers import GPT2Tokenizer, get_linear_schedule_with_warmup
 
 from evaluation.utils import compute_captioning_metrics
-from models.clip import RSDClip
+from models.clip import RSDiXClip
 from models.clipcap import ClipCaptionModel, generate_caption
 from models.clipcap import MappingType
 from models.clipcap.model_utils import compute_loss
 from utils import IMAGE_FIELD, BETAS, GPT2_CAPTION_TOKENS_FIELD, ALLOWED_METRICS, RAW_CAPTION_FIELD, GPT2_MASK_FIELD, \
-    METEOR, METRICS, BLEU, MIN_BLEU, MAX_BLEU
+    METEOR, BLEU, MIN_BLEU, MAX_BLEU
 
 
-class RSDClipCap(l.LightningModule):
+class RSDiXClipCap(l.LightningModule):
     """
     A LightningModule wrapper for a CLIP-based image captioning model.
     """
@@ -112,13 +112,13 @@ class RSDClipCap(l.LightningModule):
         if lr is None:
             lr = clipcap_lr
 
-        self._clip_encoder = RSDClip(model=model, lr=lr, alpha=alpha, ema_decay=ema_decay,
-                                     weight_decay=weight_decay, start_factor=start_factor,
-                                     end_factor=end_factor, total_iters=total_iters,
-                                     use_warmup=use_warmup, warmup_steps=warmup_steps, eps=eps, betas=betas,
-                                     sinkhorn_lambda=sinkhorn_lambda, sinkhorn_iter=sinkhorn_iter,
-                                     ii_coeff=ii_coeff, tt_coeff=tt_coeff, remove_diag=remove_diag,
-                                     checkpoint_path=clip_checkpoint_path)
+        self._clip_encoder = RSDiXClip(model=model, lr=lr, alpha=alpha, ema_decay=ema_decay,
+                                       weight_decay=weight_decay, start_factor=start_factor,
+                                       end_factor=end_factor, total_iters=total_iters,
+                                       use_warmup=use_warmup, warmup_steps=warmup_steps, eps=eps, betas=betas,
+                                       sinkhorn_lambda=sinkhorn_lambda, sinkhorn_iter=sinkhorn_iter,
+                                       ii_coeff=ii_coeff, tt_coeff=tt_coeff, remove_diag=remove_diag,
+                                       checkpoint_path=clip_checkpoint_path)
 
         if freeze_clip_encoder:
             self._clip_encoder.freeze()
@@ -238,12 +238,12 @@ class RSDClipCap(l.LightningModule):
         }
 
     @property
-    def clip_encoder(self) -> RSDClip:
+    def clip_encoder(self) -> RSDiXClip:
         """
         Get the CLIP image encoder.
 
         Returns:
-            RSDClip: The CLIP image encoder.
+            RSDiXClip: The CLIP image encoder.
         """
         return self._clip_encoder
 

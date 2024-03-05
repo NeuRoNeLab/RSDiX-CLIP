@@ -1,4 +1,4 @@
-script: train_clipcap.py
+script: train_rsidx_clipcap.py
 config_file: clipcap_config.yaml
 attr_keys:
   model:
