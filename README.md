@@ -181,23 +181,37 @@ To train and finetune RSDiX-CLIP, run `train_finetune_clip.py` file with the des
    2. Here are the available **data parameters**:
       
       - `--data.annotations_files (Union[str, List[str]])`: Path or Paths to the file(s) containing the annotations.
+        
       - `--data.img_dirs (Union[str, List[str]])`: Directory or Directories with all the images.
+        
       - `--data.additional_test_annotation_files (Optional[List[Optional[str]]])`: Optional list of paths to additional
                 test annotation files. Defaults to None.
+        
       - `--data.img_transform (callable, optional)`: Optional transforms to be applied on an image for data augmentation.
                 If None, random transformations will be applied. Defaults to None.
+        
       - `--data.target_transform (callable, optional)`: Optional transforms to be applied on a caption. Defaults to None.
+        
       - `--data.train_split_percentage (float)`: The training set split percentage. If smaller than 100, the remaining
                 will be divided between the validation and test set. Defaults to TRAIN_SPLIT_PERCENTAGE.
+        
       - `--data.val_split_percentage (float)`: The validation set split percentage. If train_split + val_split is smaller
                 than 100, the remaining will be used to split the train set. Defaults to VAL_SPLIT_PERCENTAGE.
+        
       - `--data.batch_size (int)`: The batch size of each dataloader. Defaults to BATCH_SIZE.
+        
       - `--data.num_workers (int,` optional): The number of workers in the DataLoader. Defaults to 0.
+        
       - `--data.augment_image_data (bool)`: Whether to apply transforms to augment image data. Defaults to False.
+        
       - `--data.augment_text_data (bool)`: Whether to apply transforms to augment text data. Defaults to False.
+        
       - `--data.shuffle (bool, optional)`: Whether to have shuffling behavior during sampling. Defaults to False.
+        
       - `--data.processor (str)`: The CLIPProcessor to preprocess the batches. Defaults to None.
+        
       - `--data.use_gpt2_tokenizer (bool)`: Whether to use GPT2-Tokenizer for tokenization. True if training ClipCap.
+        
 4. Here is an example command to run this script:
 ```shell
     python train_finetune_rsidx_clip.py fit --data.annotations_file data/RSICD/dataset_rsicd.json --data.img_dirs data/RSICD/RSICD_images --model.lr 1e-05 --model.weight_decay 0.01
@@ -291,23 +305,36 @@ To train and finetune RSDiX-CLIPCap, run `train_finetune_clip.py` file with the 
 2. Here are the available **data parameters**:
        
    - `--data.annotations_files (Union[str, List[str]])`: Path or Paths to the file(s) containing the annotations.
+  
    - `--data.img_dirs (Union[str, List[str]])`: Directory or Directories with all the images.
+     
    - `--data.additional_test_annotation_files (Optional[List[Optional[str]]])`: Optional list of paths to additional
                test annotation files. Defaults to None.
+   
    - `--data.img_transform (callable, optional)`: Optional transforms to be applied on an image for data augmentation.
                If None, random transformations will be applied. Defaults to None.
+   
    - `--data.target_transform (callable, optional)`: Optional transforms to be applied on a caption. Defaults to None.
+     
    - `--data.train_split_percentage (float)`: The training set split percentage. If smaller than 100, the remaining
                will be divided between the validation and test set. Defaults to 80.
+   
    - `--data.val_split_percentage (float)`: The validation set split percentage. If train_split + val_split is smaller
                than 100, the remaining will be used to split the train set. Defaults to 10.
+   
    - `--data.batch_size (int)`: The batch size of each dataloader. Defaults to 512.
+     
    - `--data.num_workers (int, optional)`: The number of workers in the DataLoader. Defaults to 0.
+     
    - `--data.augment_image_data (bool)`: Whether to apply transforms to augment image data. Defaults to False.
+     
    - `--data.augment_text_data (bool)`: Whether to apply transforms to augment text data. Defaults to False.
+     
    - `--data.shuffle (bool, optional)`: Whether to have shuffling behavior during sampling. Defaults to False.
    - `--data.processor (str)`: The CLIPProcessor to preprocess the batches. Defaults to None.
+     
    - `--data.use_gpt2_tokenizer (bool)`: Whether to use GPT2-Tokenizer for tokenization. True if training ClipCap.
+     
 4. Here is an example command to run this script:
 ```shell
     python train_rsidx_clipcap.py fit --data.annotations_file data/RSICD/dataset_rsicd.json --data.img_dirs data/RSICD/RSICD_images --model.clipcap_lr 1e-05 --model.clipcap_weight_decay 0.01
@@ -350,11 +377,16 @@ To evaluate the models, please check out the sections below.
 ## Evaluating RSDiX-CLIP
 To evaluate the RSDiX-CLIP model, run `eval_clip.py` with the desired parameters: 
 
-- `--scores_dir (str)`: Path where the model's results directory will be created. Defaults to "eval_results". 
+- `--scores_dir (str)`: Path where the model's results directory will be created. Defaults to "eval_results".
+  
 - `--scores_file (str):` Path where the model's results will be saved. Defaults to "scores.tsv".
+  
 - `--model_pth (str)`: Path to the model checkpoint to evaluate.
-- `--processor (str)`: CLIPProcessor to use to preprocess data. Defaults to "openai/clip-vit-base-patch32". 
+  
+- `--processor (str)`: CLIPProcessor to use to preprocess data. Defaults to "openai/clip-vit-base-patch32".
+  
 - `--annotations_file (str)`: Annotations file of the dataset to evaluate the model on.
+  
 - `--img_dir (str)`: Directory containing the images of dataset to evaluate the model on.
 
 ## Evaluating RSDiX-CLIPCap
@@ -412,7 +444,7 @@ Try changing the locale settings to **US**. For more information, follow [here](
 ## Running the RSDiX-CLIP Remote Sensing Inference Script
 To extract image embeddings using the CLIP Remote Sensing model, run `clip_inference.py` with the desired parameters:
 
-`--annotations_file (str)`: Annotations file of the dataset to evaluate the model on.
+- `--annotations_file (str)`: Annotations file of the dataset to evaluate the model on.
 
 - `--img_dir (str)`: Directory containing the images of dataset  to evaluate the model on.
 
