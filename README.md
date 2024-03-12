@@ -38,7 +38,7 @@ Remote sensing (RS) imagery serves as a crucial information source for diverse a
 
 **NWPU-Captions**: A recent RS dataset, comprising 31,500 256 x 256 images and 157,500 captions (5 per each image), manually annotated by experienced volunteers. It offers a substantial scale and a broad representation of intricate scenes, providing a wealth of diverse vocabulary and sentence structures.
 
-**S2LCD**: The proposed *Sentinel-2 Land-cover Captioning Dataset* encompasses 1533 image patches (224x224 pixels) created from Sentinel-2 L2A images, ensuring diversity in land cover/use (forests, mountains, agriculture, urban areas, all with varying human influence). Each patch has 5 captions (7665 in total) with wide vocabulary (natural language and EAGLES lexicon [@eagleslexicon]) and attention to detail. This dataset is used in captioning experiments only due to the peculiar caption structure of some images: a few captions describe only partial image elements while others capture complementary details. This makes them less suitable for contrastive image-text losses.
+**S2LCD**: The proposed *Sentinel-2 Land-cover Captioning Dataset* encompasses 1533 image patches (224x224 pixels) created from Sentinel-2 L2A images, ensuring diversity in land cover/use (forests, mountains, agriculture, urban areas, all with varying human influence). Each patch has 5 captions (7665 in total) with wide vocabulary (natural language and EAGLES lexicon) and attention to detail. This dataset is used in captioning experiments only due to the peculiar caption structure of some images: a few captions describe only partial image elements while others capture complementary details. This makes them less suitable for contrastive image-text losses.
 
 
 ## RSDiX-CLIP Comparison Results
@@ -104,6 +104,17 @@ Top-1 accuracy results comparison of our RSDiX-CLIP models with current SOTA met
 |  | NWPU | 0.527 | 0.720 | 0.320 | 0.656 | 0.761 | 0.667 | 0.571 | 0.476 |
 
 Comparison of RSDiX-CLIPCap results with SOTA methods on RSICD, UCMD and NWPU datasets. Scores: METEOR, S-SBERT-Sim, SPICE, ROUGE-L, BLEU-{1, 2, 3, 4}.
+
+## Models' weights 
+Trained model weights can be found at the following MEGA link:
+
+   - https://mega.nz/folder/N2di0BKZ#KhNe70VIg9a2mjoopo6A9A
+
+Specifically:
+   
+   - The `RSDiX-CLIP` directory contains the weights for the RSDiX-CLIP family.
+
+   - The `RSDiX-CLIPCap` contains the weights for the RSDiX-CLIPCap family.
 
 # Installation Guide
 To install the necessary requirements for the project, please follow the steps below.
