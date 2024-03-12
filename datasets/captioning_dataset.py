@@ -35,7 +35,7 @@ class CaptioningDataset(Dataset):
 
         Args:
             annotations_file (str): Path to the file containing the annotations.
-            img_dir (str): Directory with all the NAIS_images.
+            img_dir (str): Directory with all the images.
             img_transform (callable, optional): Optional transform to be applied on an image. If None, random
                 transformations will be applied.
             target_transform (callable, optional): Optional transform to be applied on a caption.

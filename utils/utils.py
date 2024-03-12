@@ -42,9 +42,9 @@ def get_splits(n_instances: int, train_split_percentage: float, val_split_percen
     return train_split, val_split, test_split
 
 
-def nais_to_json(annotations_file: str, json_file_name: str = "dataset_nais"):
+def s2lcd_to_json(annotations_file: str, json_file_name: str = "dataset_s2lcd"):
     """
-    Convert NAIS dataset annotations from XML to JSON format.
+    Convert S2LCD dataset annotations from XML to JSON format.
 
     Args:
         annotations_file (str): Path to the XML annotations file.
