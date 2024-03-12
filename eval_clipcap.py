@@ -175,11 +175,11 @@ if __name__ == "__main__":
     parser.add_argument("--import_captions_file", type=str, default=None)
     parser.add_argument("--annotations_files", nargs='*',
                         default=["./data/RSICD/dataset_rsicd.json", "./data/UCMD/dataset_ucmd.json",
-                                 "./data/RSITMD/dataset_rsitmd.json", "./data/NAIS/dataset_nais.json",
+                                 "./data/RSITMD/dataset_rsitmd.json", "./data/S2LCD/dataset_s2lcd.json",
                                  "./data/NWPU-Captions/dataset_nwpu.json"])
     parser.add_argument("--img_dirs", nargs='*',
                         default=["./data/RSICD/RSICD_images", "./data/UCMD/UCMD_images", "./data/RSITMD/RSITMD_images",
-                                 "./data/NAIS/NAIS_images", "./data/NWPU-Captions/NWPU-Captions_images"])
+                                 "./data/S2LCD/S2LCD_images", "./data/NWPU-Captions/NWPU-Captions_images"])
     parser.add_argument("--splits", nargs='*',
                         default=["test", "test", "test", "test", "test"])
 

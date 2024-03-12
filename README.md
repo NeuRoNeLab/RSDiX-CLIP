@@ -418,10 +418,10 @@ To evaluate the RSDiX-CLIPCap model, run `eval_clipcap.py` with the desired para
 - `--import_captions_file` (str): Path to import captions for evaluation from a JSON file. Default is None.
 
 - `--annotations_files` (List[str]): List of paths to annotation files for different datasets.
-  Default includes datasets like RSICD, UCMD, RSITMD, NAIS, NWPU-Captions.
+  Default includes datasets like RSICD, UCMD, RSITMD, S2LCD, NWPU-Captions.
 
 - `--img_dirs` (List[str]): List of paths to image directories corresponding to the annotation files.
-  Default includes directories for datasets like RSICD, UCMD, RSITMD, NAIS, NWPU-Captions.
+  Default includes directories for datasets like RSICD, UCMD, RSITMD, S2LCD, NWPU-Captions.
 
 - `--splits` (List[str]): List of splits to evaluate for each dataset. Default is ["val", "test", "test", "test", "test"].
 
