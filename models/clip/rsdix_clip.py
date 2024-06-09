@@ -42,7 +42,10 @@ class RSDiXClip(l.LightningModule):
                  ii_coeff: float = 1.0,
                  tt_coeff: float = 1.0,
                  remove_diag: bool = False,
-                 checkpoint_path: str = None):
+                 checkpoint_path: str = None,
+                 use_sentence_bert_as_teacher: bool = False,
+                 freeze_sentence_bert: bool = True,
+                 sentence_bert_model: str = None):
         """
             Initialize a CLIPWrapper instance.
 
@@ -76,6 +79,9 @@ class RSDiXClip(l.LightningModule):
 
         if use_warmup != "cosine" and use_warmup != "linear":
             raise ValueError(f"{use_warmup} not supported. Try 'cosine' or 'linear'.")
+
+        if use_sentence_bert_as_teacher and sentence_bert_model is None:
+            raise ValueError(f"sentence_bert_model cannot be None when using sentence bert as a teacher.")
 
         # Init main model
         self._student = CLIPModel.from_pretrained(model)
@@ -121,6 +127,19 @@ class RSDiXClip(l.LightningModule):
             self._student.load_state_dict(student_state_dict)
             self._teacher.load_state_dict(teacher_state_dict)
 
+        if use_sentence_bert_as_teacher and sentence_bert_model is not None:
+            self._sbert_model = SentenceTransformer(sentence_bert_model)
+            # freeze sentence bert
+            if freeze_sentence_bert:
+                auto_model = self._sbert_model._first_module().auto_model
+                for param in auto_model.parameters():
+                    param.requires_grad = False
+            sentence_bert_dim_embedding = self._sbert_model.encode("a").shape[0]
+            # linear layer to project SBERT embeddings to match CLIP's dimension
+            self._proj_linear_sbert_clip = torch.nn.Linear(sentence_bert_dim_embedding, 512)
+        else:
+            self._sbert_model = None
+
         self._ema_model = ExponentialMovingAverage(self._student.parameters(), decay=ema_decay)
 
         self._sinkhorn_lambda = sinkhorn_lambda
@@ -165,7 +184,13 @@ class RSDiXClip(l.LightningModule):
 
         # Compute teacher embeddings and self-distillation targets
         with torch.no_grad():
-            teacher_images_embeds, teacher_text_embeds = self.get_embeddings(images=images, text=text, teacher=True)
+            teacher_images_embeds, teacher_text_embeds = self.get_embeddings(images=images,
+                                                                             text=text if self._sbert_model is None \
+                                                                                else raw_text,
+                                                                             teacher=True)
+            if self._sbert_model is not None:
+                teacher_text_embeds = self._proj_linear_sbert_clip(teacher_text_embeds)
+
             teacher_images_embeds = teacher_images_embeds.detach()
             teacher_text_embeds = teacher_text_embeds.detach()
             images_target_prob, text_target_prob = compute_teacher_targets(teacher_images_embeds, teacher_text_embeds,
@@ -185,8 +210,9 @@ class RSDiXClip(l.LightningModule):
 
         # Compute training metrics
         # CLIP/Sentence-BERT MSE in embeddings similarities
+        st_embeddings = self._st_model.encode(raw_text)
         mse = compute_mse(clip_image_embeddings=student_images_embeds, clip_text_embeddings=student_text_embeds,
-                          st_embeddings=self._st_model.encode(raw_text), device=images.device)
+                          st_embeddings=st_embeddings, device=images.device)
 
         # Compute accuracy (contrastive loss ground truth = identity matrix)
         accuracy = compute_accuracy(images_logits=unscaled_student_images_logits, batch_size=len(images))
@@ -206,8 +232,9 @@ class RSDiXClip(l.LightningModule):
         outputs = self.forward(batch)
 
         accuracy = compute_accuracy(images_logits=outputs.logits_per_image, batch_size=len(images_embeds))
+        st_embeddings = self._st_model.encode(raw_text)
         mse = compute_mse(clip_image_embeddings=images_embeds, clip_text_embeddings=text_embeds,
-                          st_embeddings=self._st_model.encode(raw_text), device=images.device)
+                          st_embeddings=st_embeddings, device=images.device)
 
         self.log_dict({'val_loss': outputs.loss.item(),
                        'val_mse_sentence_transformer': mse,
@@ -241,6 +268,11 @@ class RSDiXClip(l.LightningModule):
         Returns:
             torch.FloatTensor: The text embeddings.
         """
+        # if sbert_model is not None, use the provided sbert model as the teacher for aligning the text embeddings
+        # otherwise, use RSDiX-CLIP as the teacher for both image and text embeddings
+        if teacher and self._sbert_model is not None:
+            return torch.from_numpy(self._sbert_model.encode(text)).to(torch.float32).to(self._student.device)
+
         return self._student.get_text_features(text) if teacher is False else \
             self._teacher.get_text_features(text)
 
@@ -332,3 +364,13 @@ class RSDiXClip(l.LightningModule):
             ExponentialMovingAverage: The current EMA.
         """
         return self._ema_model
+
+    @property
+    def sbert_model(self) -> SentenceTransformer:
+        """
+        Get the SemtemceBERT model.
+
+        Returns:
+            SentenceTransformer: The current SentenceBERT model..
+        """
+        return self._sbert_model
