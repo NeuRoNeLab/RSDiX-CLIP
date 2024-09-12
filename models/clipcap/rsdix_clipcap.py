@@ -5,10 +5,10 @@ import torch
 from transformers import GPT2Tokenizer, get_linear_schedule_with_warmup
 
 from evaluation.utils import compute_captioning_metrics
-from models.clip import RSDiXClip
-from models.clipcap import ClipCaptionModel, generate_caption
-from models.clipcap import MappingType
-from models.clipcap.model_utils import compute_loss
+from ..clip import RSDiXClip
+from . import ClipCaptionModel, generate_caption
+from . import MappingType
+from .model_utils import compute_loss
 from utils import IMAGE_FIELD, BETAS, GPT2_CAPTION_TOKENS_FIELD, ALLOWED_METRICS, RAW_CAPTION_FIELD, GPT2_MASK_FIELD, \
     METEOR, BLEU, MIN_BLEU, MAX_BLEU
 

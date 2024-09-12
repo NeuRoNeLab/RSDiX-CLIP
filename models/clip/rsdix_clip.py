@@ -3,7 +3,7 @@ import torch
 import yaml
 import copy
 
-from transformers import CLIPModel
+from transformers import CLIPModel, CLIPProcessor
 from typing import Optional, Dict, Any
 
 from loss import DistillationLoss
@@ -117,7 +117,10 @@ class RSDiXClip(l.LightningModule):
         self._teacher = copy.deepcopy(self._student)
 
         if checkpoint_path is not None:
-            state_dict = torch.load(checkpoint_path)["state_dict"]
+            state_dict = torch.load(checkpoint_path)
+
+            if "state_dict" in state_dict:
+                state_dict = state_dict["state_dict"]
 
             student_state_dict = {key.replace("_student.", ""): value for key, value in state_dict.items() if
                                   "student" in key}
@@ -134,9 +137,13 @@ class RSDiXClip(l.LightningModule):
                 auto_model = self._sbert_model._first_module().auto_model
                 for param in auto_model.parameters():
                     param.requires_grad = False
+
             sentence_bert_dim_embedding = self._sbert_model.encode("a").shape[0]
+            processor = CLIPProcessor.from_pretrained(model)
+            text_input = processor(text="a", truncation=True, return_tensors="pt", padding="max_length")
+            text_emb = self._student.get_text_features(**text_input)
             # linear layer to project SBERT embeddings to match CLIP's dimension
-            self._proj_linear_sbert_clip = torch.nn.Linear(sentence_bert_dim_embedding, 512)
+            self._proj_linear_sbert_clip = torch.nn.Linear(sentence_bert_dim_embedding, text_emb.shape[1])
         else:
             self._sbert_model = None
 
@@ -189,6 +196,7 @@ class RSDiXClip(l.LightningModule):
                                                                                 else raw_text,
                                                                              teacher=True)
             if self._sbert_model is not None:
+                teacher_text_embeds = teacher_text_embeds.to(teacher_images_embeds.dtype)
                 teacher_text_embeds = self._proj_linear_sbert_clip(teacher_text_embeds)
 
             teacher_images_embeds = teacher_images_embeds.detach()
