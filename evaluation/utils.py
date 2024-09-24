@@ -1,10 +1,20 @@
 import json
+import multiprocessing
 import os
 from typing import List, Union
 
 from datasets import CaptioningDataModule, CaptioningDataset
-from utils import IMAGE_FIELD, RAW_CAPTION_FIELD, METEOR, BLEU, METRICS, inc_var
+from utils import IMAGE_FIELD, RAW_CAPTION_FIELD, METEOR, BLEU, METRICS, inc_var, SPICE
 
+
+def synchronized(func):
+    func.__lock__ = multiprocessing.Lock()
+
+    def synced_func(*args, **kws):
+        with func.__lock__:
+            return func(*args, **kws)
+
+    return synced_func
 
 def get_model_basename(model):
     """
@@ -142,7 +152,8 @@ def get_splits_for_evaluation(annotations_files: Union[str, List[str]], img_dirs
 
 
 def compute_captioning_metrics(preds: list[str], reference_captions: list[list[str]], avg_metrics: dict,
-                               i: int, compute_var: bool = False):
+                               i: int, compute_var: bool = False, parallel_computation: bool = False):
+
     for metric in avg_metrics:
 
         if metric == "no_meteor_count":
@@ -153,8 +164,13 @@ def compute_captioning_metrics(preds: list[str], reference_captions: list[list[s
                 value, _ = METRICS[metric](candidates=preds, mult_references=reference_captions)
                 value = value[metric].item()
                 prev_mean = avg_metrics[METEOR] if compute_var is False else avg_metrics[METEOR]["mean"]
-                mean = (prev_mean + 1 / (i + 1 - avg_metrics["no_meteor_count"])
-                        * (value - prev_mean))
+
+                # If multiprocessing is used, do not use moving average and return accumulated metrics and let the
+                # father process normalize
+                if parallel_computation:
+                    mean = prev_mean + value
+                else:
+                    mean = (prev_mean + 1 / (i + 1 - avg_metrics["no_meteor_count"]) * (value - prev_mean))
                 if compute_var:
                     var = inc_var(value, n=i + 1,
                                   prev_var=avg_metrics[METEOR]["var"],
@@ -178,10 +194,24 @@ def compute_captioning_metrics(preds: list[str], reference_captions: list[list[s
                 j = int(metric.split("_")[1])
                 value, _ = METRICS[BLEU](candidates=preds, mult_references=reference_captions, n=j)
             else:
-                value, _ = METRICS[metric](candidates=preds, mult_references=reference_captions)
+                # Spice computation need to be synced between processes to avoid race conditions
+                if metric == SPICE and parallel_computation:
+                    @synchronized
+                    def synchronized_spice():
+                        return METRICS[metric](candidates=preds, mult_references=reference_captions)
+
+                    value, _ = synchronized_spice()
+                else:
+                    value, _ = METRICS[metric](candidates=preds, mult_references=reference_captions)
             value = value[metric].item()
             prev_mean = avg_metrics[metric] if compute_var is False else avg_metrics[metric]["mean"]
-            mean = prev_mean + 1 / (i + 1) * (value - prev_mean)
+
+            # If multiprocessing is used, do not use moving average and return accumulated metrics and let the
+            # father process normalize
+            if parallel_computation:
+                mean = prev_mean + value
+            else:
+                mean = prev_mean + 1 / (i + 1) * (value - prev_mean)
             if compute_var:
                 var = inc_var(value, n=i + 1,
                               prev_var=avg_metrics[metric]["var"],

@@ -3,7 +3,7 @@ import torch
 import yaml
 import copy
 
-from transformers import CLIPModel, CLIPProcessor
+from transformers import AutoModel, AutoProcessor
 from typing import Optional, Dict, Any
 
 from loss import DistillationLoss
@@ -11,6 +11,7 @@ from sentence_transformers import SentenceTransformer
 from cosine_annealing_warmup import CosineAnnealingWarmupRestarts
 from torch.optim.lr_scheduler import LinearLR
 
+from loss.sig_loss import SigmoidLoss
 from utils import CONFIG_DIR, VIT_CONFIG_FILE, IMAGE_FIELD, CAPTION_FIELD, BETAS, \
     RAW_CAPTION_FIELD
 from .model_utils import compute_mse, compute_accuracy, compute_teacher_targets
@@ -45,7 +46,8 @@ class RSDiXClip(l.LightningModule):
                  checkpoint_path: str = None,
                  use_sentence_bert_as_teacher: bool = False,
                  freeze_sentence_bert: bool = True,
-                 sentence_bert_model: str = None):
+                 sentence_bert_model: str = None,
+                 use_sigmoid_loss: bool = False):
         """
             Initialize a CLIPWrapper instance.
 
@@ -84,7 +86,8 @@ class RSDiXClip(l.LightningModule):
             raise ValueError(f"sentence_bert_model cannot be None when using sentence bert as a teacher.")
 
         # Init main model
-        self._student = CLIPModel.from_pretrained(model)
+        self._student = AutoModel.from_pretrained(model)
+        self._model_name = model
 
         # If no LR is passed, the default one from the model's configuration will be used
         # Note: Only Visual Transformers are currently supported
@@ -112,8 +115,18 @@ class RSDiXClip(l.LightningModule):
             self._end_factor = end_factor
             self._total_iters = total_iters
 
+        self._use_sigmoid_loss = use_sigmoid_loss
+
         # Init self-distillation loss and teacher model
-        self._dist_loss = DistillationLoss()
+        if use_sigmoid_loss and "siglip" not in model:
+            self._dist_loss = SigmoidLoss()
+            self._contrastive_loss = SigmoidLoss()
+        elif use_sigmoid_loss and "siglip" in model:
+            self._dist_loss = SigmoidLoss()
+            self._contrastive_loss = SigmoidLoss()  # TODO: delete
+        else:
+            self._dist_loss = DistillationLoss()
+
         self._teacher = copy.deepcopy(self._student)
 
         if checkpoint_path is not None:
@@ -139,7 +152,7 @@ class RSDiXClip(l.LightningModule):
                     param.requires_grad = False
 
             sentence_bert_dim_embedding = self._sbert_model.encode("a").shape[0]
-            processor = CLIPProcessor.from_pretrained(model)
+            processor = AutoProcessor.from_pretrained(model)
             text_input = processor(text="a", truncation=True, return_tensors="pt", padding="max_length")
             text_emb = self._student.get_text_features(**text_input)
             # linear layer to project SBERT embeddings to match CLIP's dimension
@@ -206,12 +219,15 @@ class RSDiXClip(l.LightningModule):
                                                                            self._sinkhorn_lambda, self._sinkhorn_iter,
                                                                            self._remove_diag)
         # Compute self-distillation loss
-        images_dist_loss = self._dist_loss(pred=unscaled_student_images_logits, target_prob=images_target_prob)
-        text_dist_loss = self._dist_loss(pred=unscaled_student_images_logits.t(), target_prob=text_target_prob)
+        images_dist_loss = self._dist_loss(unscaled_logits=unscaled_student_images_logits, target=images_target_prob)
+        text_dist_loss = self._dist_loss(unscaled_logits=unscaled_student_images_logits.t(), target=text_target_prob)
         distillation_loss = (images_dist_loss + text_dist_loss) / 2
 
         # Compute contrastive loss
-        contrastive_loss = self.forward(batch).loss
+        if self._use_sigmoid_loss and "siglip" not in self._model_name:
+            contrastive_loss = self._contrastive_loss(unscaled_logits=unscaled_student_images_logits)
+        else:
+            contrastive_loss = self.forward(batch).loss
 
         # Total loss
         loss = (self._alpha * contrastive_loss) + ((1 - self._alpha) * distillation_loss)
@@ -237,19 +253,25 @@ class RSDiXClip(l.LightningModule):
         images, text, raw_text = batch[IMAGE_FIELD], batch[CAPTION_FIELD], batch.pop(RAW_CAPTION_FIELD)
         images_embeds, text_embeds = self.get_embeddings(images=images, text=text)
 
-        outputs = self.forward(batch)
+        if self._use_sigmoid_loss and "siglip" not in self._model_name:
+            logits_per_image = torch.matmul(images_embeds, text_embeds.t())
+            loss_item = self._contrastive_loss(unscaled_logits=logits_per_image)
+        else:
+            outputs = self.forward(batch)
+            logits_per_image = outputs.logits_per_image
+            loss_item = outputs.loss.item()
 
-        accuracy = compute_accuracy(images_logits=outputs.logits_per_image, batch_size=len(images_embeds))
+        accuracy = compute_accuracy(images_logits=logits_per_image, batch_size=len(images_embeds))
         st_embeddings = self._st_model.encode(raw_text)
         mse = compute_mse(clip_image_embeddings=images_embeds, clip_text_embeddings=text_embeds,
                           st_embeddings=st_embeddings, device=images.device)
 
-        self.log_dict({'val_loss': outputs.loss.item(),
+        self.log_dict({'val_loss': loss_item,
                        'val_mse_sentence_transformer': mse,
                        'val_acc': accuracy}, sync_dist=True,
                       prog_bar=True, on_step=True, on_epoch=True, logger=True, enable_graph=True)
 
-        return outputs.loss
+        return loss_item
 
     def encode_image(self, images: torch.Tensor, teacher: bool = False) -> torch.FloatTensor:
         """
@@ -354,7 +376,7 @@ class RSDiXClip(l.LightningModule):
         self._lr = lr
 
     @property
-    def student(self) -> CLIPModel:
+    def student(self) -> AutoModel:
         """
         Get the student model.
 

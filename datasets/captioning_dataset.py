@@ -9,7 +9,7 @@ from PIL import Image
 from torch.utils.data import Dataset, DataLoader, random_split, default_collate, ConcatDataset
 from torchvision import transforms as t
 from torchvision.io import read_image
-from transformers import CLIPProcessor
+from transformers import AutoProcessor
 
 from transformations import BackTranslation, GPT2Tokenization
 from utils import DEFAULT_TRANSFORMS, IMAGE_DEFAULT_C, IMAGE_DEFAULT_H, IMAGE_DEFAULT_W, TRAIN_SPLIT_PERCENTAGE, \
@@ -168,7 +168,7 @@ class CaptioningDataModule(l.LightningDataModule):
             augment_image_data (bool): Whether to apply transforms to augment image data. Defaults to False.
             augment_text_data (bool): Whether to apply transforms to augment text data. Defaults to False.
             shuffle (bool, optional): Whether to have shuffling behavior during sampling. Defaults to False.
-            processor (str): The CLIPProcessor to preprocess the batches. Defaults to None.
+            processor (str): The AutoProcessor to preprocess the batches. Defaults to None.
             use_gpt2_tokenizer (bool): Whether to use GPT2-Tokenizer for tokenization. True if training ClipCap.
 
         Raises:
@@ -212,9 +212,9 @@ class CaptioningDataModule(l.LightningDataModule):
         self._shuffle = shuffle
 
         if processor is None:
-            self._processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
+            self._processor = AutoProcessor.from_pretrained("openai/clip-vit-base-patch32")
         else:
-            self._processor = CLIPProcessor.from_pretrained(processor)
+            self._processor = AutoProcessor.from_pretrained(processor)
 
         self._use_gpt2_tokenizer = use_gpt2_tokenizer
 

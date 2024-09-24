@@ -14,11 +14,11 @@ class DistillationLoss(nn.Module):
         self.loss = nn.KLDivLoss(reduction='batchmean')
         self.T_s = nn.Parameter(torch.tensor(3.9, requires_grad=True))
 
-    def forward(self, pred, target_prob):
+    def forward(self, unscaled_logits, target):
         """
         Pred is logits and target is probabilities.
         """
         T_s = torch.clamp(torch.exp(self.T_s), min=1.0, max=100.0)
-        pred_logprob = self.logsoftmax(pred * T_s)
+        pred_logprob = self.logsoftmax(unscaled_logits * T_s)
 
-        return self.loss(input=pred_logprob, target=target_prob)
+        return self.loss(input=pred_logprob, target=target)

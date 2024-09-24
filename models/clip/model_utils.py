@@ -72,7 +72,7 @@ def compute_similarities(i_emb, t_emb):
 
 @torch.no_grad()
 def compute_teacher_targets(teacher_images_embs, teacher_text_embs, ii_coeff, tt_coeff, sinkhorn_lambda, sinkhorn_iter,
-                            remove_diag):
+                            remove_diag, sigmoid_target: bool = False):
     """
     Compute teacher targets for self-distillation.
 
@@ -104,8 +104,18 @@ def compute_teacher_targets(teacher_images_embs, teacher_text_embs, ii_coeff, tt
     images_target_prob = sinkhorn(images_cost_mat, sinkhorn_lambda, sinkhorn_iter)
     text_target_prob = sinkhorn(text_cost_mat, sinkhorn_lambda, sinkhorn_iter)
 
-    images_target_prob /= images_target_prob.sum(dim=1, keepdim=True)
-    text_target_prob /= text_target_prob.sum(dim=1, keepdim=True)
+    if sigmoid_target:
+        # Bring between -1 and 1 to match the sigmoid target
+        #images_target_prob = images_target_prob.sigmoid()
+        #text_target_prob = text_target_prob.sigmoid()
+        # TODO: check if pre-normalizing (in such a way that rows sum to 1) is necessary or this sigmoid thing is fine
+        images_target_prob /= images_target_prob.sum(dim=1, keepdim=True)
+        text_target_prob /= text_target_prob.sum(dim=1, keepdim=True)
+        images_target_prob = images_target_prob * 2 - 1
+        text_target_prob = text_target_prob * 2 - 1
+    else:
+        images_target_prob /= images_target_prob.sum(dim=1, keepdim=True)
+        text_target_prob /= text_target_prob.sum(dim=1, keepdim=True)
 
     return images_target_prob, text_target_prob
 
