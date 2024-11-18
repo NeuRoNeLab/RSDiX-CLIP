@@ -18,11 +18,41 @@
 
 <br>
 
+# Table of Contents
+
+1. [RSDiX: Addressing Intra-Class Similarity in Remote Sensing with Self-Distillation](#rsdix-addressing-intra-class-similarity-in-remote-sensing-with-self-distillation)
+2. [Datasets](#datasets)
+3. [Data Availability](#data-availablity)
+4. [Results](#results)
+   - [RSDiX-CLIP Comparison Results](#rsdix-clip-comparison-results)
+   - [RSDiX-CLIPCap Comparison Results](#rsdix-clipcap-comparison-results)
+   - [RSDiX-SigLIP Comparison Results](#rsdix-siglip-comparison-results)
+   - [RSDiX-SigLIPCap Comparison Results](#rsdix-siglipcap-comparison-results)
+   - [RSDiX-CLIP-SBERT Comparison Results](#rsdix-clip-sbert-comparison-results)
+   - [RSDiX-CLIPCap-SBERT Comparison Results](#rsdix-clipcap-sbert-comparison-results)
+5. [Models' weights](#models-weights)
+6. [Installation Guide](#installation-guide)
+   - [Installing Python](#installing-python)
+   - [Cloning the Repository](#cloning-the-repository)
+   - [Creating the Virtual Environment](#creating-the-virtual-environment)
+   - [Installing Requirements](#installing-requirements)
+7. [Training and Fine-Tuning](#training-and-fine-tuning)
+   - [Training and fine-tuning RSDiX-CLIP](#training-and-fine-tuning-rsdix-clip)
+   - [Training and fine-tuning RSDiX-CLIPCap](#training-and-fine-tuning-rsdix-clipcap)
+   - [Running Bayesian Optimization](#running-bayesian-optimization)
+8. [Evaluating](#evaluating)
+   - [Evaluating RSDiX-CLIP](#evaluating-rsdix-clip)
+   - [Evaluating RSDiX-CLIPCap](#evaluating-rsdix-clipcap)
+9. [Inference](#inference)
+   - [Running the RSDiX-CLIP Remote Sensing Inference Script](#running-the-rsdix-clip-remote-sensing-inference-script)
+   - [Running the RSDiX-CLIPCap Remote Sensing Inference Script](#running-the-rsdix-clipcap-remote-sensing-inference-script)
+10. [Acknowledgements and references](#acknowledgements-and-references)
+
 # RSDiX: Addressing Intra-Class Similarity in Remote Sensing with Self-Distillation
 
 Remote sensing (RS) imagery serves as a crucial information source for diverse applications, including environmental monitoring, urban planning, defense, and security. Despite facing challenges such as spatial/spectral, temporal variability, or lack of quality annotated data, recent years have witnessed the development of deep learning methods for RS image processing. Such models often integrate linguistic information to enrich semantic understanding, showing potential in tasks such as zero-shot classification, detection, retrieval, and captioning of satellite images, to generate labels or descriptions with limited data. However, existing methods for these tasks encounter limitations, including low-quality captions, poor linguistic variety, similar captions for different images, noisy captions, and unreliable evaluation. In this work, we try to overcome some of these limitations by combining the power of pre-trained models with advanced training techniques such as self-distillation:
 
-1. To tackle the issue of intra-class similarity in RS image datasets, we introduce *RSDiX-CLIP*, a fine-tuned version of CLIP  with an additional self-distillation objective. We propose *RSDiX-CLIPCap*, a family of captioning models that use the fine-tuned RSDiX-CLIP encoder and a transformer mapper network from CLIPCap. Our models achieve superior/competitive performance against state-of-the-art (SOTA) methods across multiple zero-shot RS image classification and captioning datasets.
+1. To tackle the issue of intra-class similarity in RS image datasets, we introduce *RSDiX-CLIP*, a fine-tuned version of CLIP with an additional self-distillation objective. We propose *RSDiX-CLIPCap*, a family of captioning models that use the fine-tuned RSDiX-CLIP encoder and a transformer mapper network from CLIPCap. Our models achieve superior/competitive performance against state-of-the-art (SOTA) methods across multiple zero-shot RS image classification and captioning datasets. Furthermore, we explore the impact of mixed distillation strategies and alternative contrastive learning frameworks, introducing the *RSDiX-CLIP-S-BERT* and *RSDiX-SigLIP* families.
 
 2. We present *Sentinel-2 Land-cover Captioning Dataset* (S2LCD), a novel RS captioning dataset with 1533 Sentinel-2 images with several land cover/use and human influence and 7665 wide-vocabulary, detailed captions.
 
@@ -40,8 +70,13 @@ Remote sensing (RS) imagery serves as a crucial information source for diverse a
 
 **S2LCD**: The proposed *Sentinel-2 Land-cover Captioning Dataset* encompasses 1533 image patches (224x224 pixels) created from Sentinel-2 L2A images, ensuring diversity in land cover/use (forests, mountains, agriculture, urban areas, all with varying human influence). Each patch has 5 captions (7665 in total) with wide vocabulary (natural language and EAGLES lexicon) and attention to detail. This dataset is used in captioning experiments only due to the peculiar caption structure of some images: a few captions describe only partial image elements while others capture complementary details. This makes them less suitable for contrastive image-text losses.
 
+## Data Availablity
 
-## RSDiX-CLIP Comparison Results
+**The S2LCD dataset is distributed under the [CC BY-NC-SA](https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode.en) license. You can download the dataset from this repository in the file named "S2LCD.zip".**
+
+## Results 
+
+### RSDiX-CLIP Comparison Results
 
 | Dataset      | RSDiX-CLIP (B/32)    | RSDiX-CLIP (B/16)    | RSDiX-CLIP (L/14)    | RemoteCLIP (B/32) | RemoteCLIP (L/14) | GeoRSCLIP (B/32) | GeoRSCLIP (H/14) | RS-CLIP (B/32) |
 |-------------------|---------|---------|---------|-----------------------|-----------------------|-----------------------|-----------------------|---------------------|
@@ -64,7 +99,7 @@ Remote sensing (RS) imagery serves as a crucial information source for diverse a
 
 Top-1 accuracy results comparison of our RSDiX-CLIP models with current SOTA methods. $A, B, C$ refer to subsets of datasets on which results are available for RemoteCLIP, GeoRSCLIP and RS-CLIP, respectively.
 
-## RSDiX-CLIPCap Comparison Results
+### RSDiX-CLIPCap Comparison Results
 
 | Model | Dataset | M ↑ | SBS ↑ | S ↑ | R ↑ | B-1 ↑ | B-2 ↑ | B-3 ↑ | B-4 ↑ |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -105,7 +140,78 @@ Top-1 accuracy results comparison of our RSDiX-CLIP models with current SOTA met
 
 Comparison of RSDiX-CLIPCap results with SOTA methods on RSICD, UCMD and NWPU datasets. Scores: METEOR, S-SBERT-Sim, SPICE, ROUGE-L, BLEU-{1, 2, 3, 4}.
 
-## Models' weights 
+### RSDiX-SigLip Comparison Results 
+
+| Dataset         | RSDiX-CLIP (B/16) | RSDiX-SigLIP (B/16) |
+|-----------------|-------------------|---------------------|
+| RSICD          | 94.40            | **95.60**          |
+| RSI-CB128      | 35.00            | **37.90**          |
+| RSI-CB256      | 45.40            | **50.30**          |
+| WHU-earth      | 75.20            | **76.30**          |
+| EuroSAT-RGB    | **51.70**        | 42.00              |
+| MLRSNet        | 71.60            | **74.40**          |
+| PatternNet     | 67.30            | **68.50**          |
+| RESISC45       | 94.60            | **94.90**          |
+| AID            | 92.60            | **95.10**          |
+| RSSCN7         | 77.40            | **78.00**          |
+| OPTIMAL-31     | 98.00            | **98.70**          |
+| RSC11          | 78.20            | **81.20**          |
+| WHU-RS19       | **98.30**        | 96.00              |
+| **Average Top-1** ↑ | 72.43            | **76.06**          |
+| **SBS-MSE** ↓    | **0.058**        | 0.219              |
+
+Top-1 accuracy and S-BERT-Sim MSE results comparison of our RSDiX-CLIP-B/16 model with our RSDiX-SigLIP-B/16 model.
+
+### RSdiX-SigLipCap Comparison Results 
+
+| Model                      | M ↑ (🔒) | M ↑ (🔓) | SBS ↑ (🔒) | SBS ↑ (🔓) | S ↑ (🔒) | S ↑ (🔓) |
+|----------------------------|----------|----------|------------|------------|----------|----------|
+| RSDiX-SigLIPCap-P/16-B     | 0.374    | **0.394** | **0.599**  | 0.597      | 0.322    | **0.345** |
+| RSDiX-SigLIPCap-P/16-M     | 0.347    | 0.283    | 0.570      | 0.438      | 0.305    | 0.235    |
+| RSDiX-SigLIPCap-P/16-L     | 0.351    | 0.345    | 0.436      | 0.523      | 0.288    | 0.284    |
+| RSDiX-SigLIPCap-P/16-XL    | 0.313    | 0.305    | 0.517      | 0.441      | 0.265    | 0.243    |
+
+Average performances of our RSDiX-SigLIPCap models. Columns represent average METEOR, S-BERT-Sim, and SPICE scores. 🔒/🔓 denote our model variants trained with a locked/unlocked encoder and the size indicator (B, M, L, XL) denotes the GPT-2 decoder model.
+
+### RSDiX-CLIP-SBERT Comparison Results
+
+| Dataset         | RSDiX-CLIP (B/32) | RSDiX-CLIP (B/16) | RSDiX-CLIP (L/14) | RSDiX-CLIP-S-BERT (B/32) | RSDiX-CLIP-S-BERT (B/16) | RSDiX-CLIP-S-BERT (L/14) |
+|-----------------|-------------------|-------------------|-------------------|--------------------------|--------------------------|--------------------------|
+| RSICD          | 96.00            | 94.40            | 92.90            | 94.00                   | 93.70                   | **96.60**               |
+| RSI-CB128      | 27.30            | 35.00            | 38.60            | 29.70                   | 29.50                   | **40.20**               |
+| RSI-CB256      | 45.90            | 45.40            | 48.30            | 45.10                   | 45.00                   | 50.10                   |
+| WHU-earth      | 65.70            | 75.20            | **78.50**         | 69.30                   | 61.30                   | 76.90                   |
+| EuroSAT-RGB    | 42.60            | 51.70            | 51.10            | **56.60**               | 47.50                   | 51.50                   |
+| MLRSNet        | 65.20            | 71.60            | **73.50**         | 66.00                   | 68.00                   | 72.90                   |
+| PatternNet     | 59.40            | 67.30            | **72.80**         | 59.40                   | 60.40                   | 68.40                   |
+| RESISC45       | 93.20            | 94.60            | **95.60**         | 93.50                   | 91.30                   | 95.20                   |
+| AID            | **95.10**        | 92.60            | 91.10            | 92.70                   | 92.50                   | 94.90                   |
+| RSSCN7         | **78.60**        | 77.40            | 77.30            | 75.70                   | 76.40                   | 73.80                   |
+| OPTIMAL-31     | 96.40            | 98.00            | 95.50            | 97.30                   | 95.10                   | **98.40**               |
+| RSC11          | 77.80            | 78.20            | 73.90            | 76.30                   | 76.90                   | **82.30**               |
+| WHU-RS19       | 98.40            | 98.30            | 96.30            | 95.80                   | 96.70                   | **98.90**               |
+| **Average Top-1** ↑ | 70.47            | 73.78            | 74.60            | 73.18                   | 71.87                   | **76.93**               |
+| **SBS-MSE** ↓   | 0.104            | **0.058**         | 0.078            | 0.155                   | 0.161                   | 0.139                   |
+
+
+Top-1 accuracy and S-BERT-Sim MSE results comparison of our RSDiX-CLIP and RSDiX-CLIP-S-BERT models.
+
+### RSDiX-CLIPCap-SBERT Comparison Results
+
+| Model                          | M ↑ (🔒) | M ↑ (🔓) | SBS ↑ (🔒) | SBS ↑ (🔓) | S ↑ (🔒) | S ↑ (🔓) |
+|--------------------------------|----------|----------|------------|------------|----------|----------|
+| RSDiX-CLIPCap-SBERT-B/32-B     | 0.407    | -        | 0.724      | -          | 0.495    | -        |
+| RSDiX-CLIPCap-SBERT-B/32-M     | 0.424    | 0.477    | 0.763      | 0.755      | 0.516    | 0.545    |
+| RSDiX-CLIPCap-SBERT-B/32-L     | 0.467    | -        | 0.777      | -          | 0.543    | -        |
+| **RSDiX-CLIPCap-SBERT-B/16-B** | 0.504    | -        | 0.736      | -          | 0.550    | -        |
+| RSDiX-CLIPCap-SBERT-B/16-M     | 0.445    | 0.478    | 0.775      | 0.750      | 0.535    | 0.543    |
+| RSDiX-CLIPCap-SBERT-B/16-L     | 0.442    | 0.553    | 0.719      | **0.798**  | 0.509    | 0.590    |
+| RSDiX-CLIPCap-SBERT-L/14-B     | 0.438    | **0.600** | 0.755      | 0.792      | 0.523    | **0.616** |
+
+Average performances of our RSDiX-CLIPCap-SBERT models. Columns represent average METEOR, S-BERT-Sim, and SPICE scores. 🔒/🔓 denote our model variants trained with a locked/unlocked encoder and the size indicator (B, M, L, XL) denotes the GPT-2 decoder model.
+
+
+# Models' weights 
 Trained model weights can be found at the following MEGA link:
 
    - https://mega.nz/folder/N2di0BKZ#KhNe70VIg9a2mjoopo6A9A
@@ -152,76 +258,115 @@ To train and finetune the models, please check out the sections below.
 ## Training and fine-tuning RSDiX-CLIP
 To train and finetune RSDiX-CLIP, run `train_finetune_clip.py` file with the desired parameters. The parameters are mainly classified into **model parameters** and **data parameters**.
    1. Here are the available **model parameters**:
-      
-        - `--model` (type: str, default: "openai/clip-vit-base-patch32"): The pre-trained CLIP model to use. Defaults to "openai/clip-vit-base-patch32".
+        - **`model`** (*type: str, default: `"openai/clip-vit-base-patch32"`*):  
+      The pre-trained CLIP model to use. Defaults to `"openai/clip-vit-base-patch32"`.
 
-        - `--lr` (type: Optional[float], default: None): The learning rate for the optimizer. If not provided, it attempts to use the learning rate from the model's configuration.
+        - **`lr`** (*type: Optional[float], default: None*):  
+      The learning rate for the optimizer. If not provided, the model's configuration is used.
     
-        - `--alpha` (type: float, default: 0.5): Trade-off factor between the contrastive loss and self-distillation loss. Defaults to 0.5 for equal contributions from both losses.
-    
-        - `--ema_decay` (type: float, default: 0.999): Exponential Moving Average (EMA) decay factor for the teacher model. Controls the adaptation rate of the teacher model.
-    
-        - `--weight_decay` (type: float, default: 0.1): Weight decay applied to model parameters during optimization.
-    
-        - `--start_factor` (type: float, default: 0.3333333333333333): Starting factor for the learning rate schedule during linear warm-up.
-    
-        - `--end_factor` (type: float, default: 1.0): Ending factor for the learning rate schedule during linear warm-up.
-    
-        - `--total_iters` (type: int, default: 5): Total number of iterations over which linear warm-up is applied.
-    
-        - `--use_warmup` (type: str, default: "cosine"): Specifies whether to use warm-up for learning rate scheduling. Choose between "cosine" or "linear."
-    
-        - `--warmup_steps` (type: int, default: 0): Number of warm-up steps.
-    
-        - `--eps` (type: float, default: 1e-08): A small epsilon value added to prevent division by zero when normalizing embeddings.
-    
-        - `--betas` (type: tuple[float, float], default: BETAS): Beta coefficients for the Adam optimizer. Control exponential moving averages of gradient and squared gradient.
-    
-        - `--sinkhorn_lambda` (type: float, default: 0.1): Parameter used in Sinkhorn distance computation for self-distillation.
-    
-        - `--sinkhorn_iter` (type: int, default: 4): Number of iterations for Sinkhorn distance computation.
-    
-        - `--ii_coeff` (type: float, default: 1.0): Coefficient used in computing teacher targets for self-distillation.
-    
-        - `--tt_coeff` (type: float, default: 1.0): Coefficient used in computing teacher targets for self-distillation.
-    
-        - `--remove_diag` (type: bool, default: False): Flag to determine whether to remove diagonal elements when computing teacher targets.
-    
-        - `--checkpoint_path` (type: str, default: None): Path to the CLIP model checkpoint.
+        - **`alpha`** (*type: float, default: 0.5*):  
+          Trade-off factor between the contrastive loss and self-distillation loss. Defaults to `0.5`.
+        
+        - **`ema_decay`** (*type: float, default: 0.999*):  
+          Exponential Moving Average (EMA) decay factor for the teacher model.
+        
+        - **`weight_decay`** (*type: float, default: 0.1*):  
+          Weight decay applied during optimization.
+        
+        - **`start_factor`** (*type: float, default: 0.3333*):  
+          Starting factor for the learning rate schedule during linear warm-up.
+        
+        - **`end_factor`** (*type: float, default: 1.0*):  
+          Ending factor for the learning rate schedule during linear warm-up.
+        
+        - **`total_iters`** (*type: int, default: 5*):  
+          Total number of iterations for linear warm-up.
+        
+        - **`use_warmup`** (*type: str, default: `"cosine"`*):  
+          Specifies the warm-up strategy for learning rate scheduling. Options: `"cosine"` or `"linear"`.
+        
+        - **`warmup_steps`** (*type: int, default: 0*):  
+          Number of warm-up steps.
+        
+        - **`eps`** (*type: float, default: 1e-08*):  
+          Small epsilon added to prevent division by zero when normalizing embeddings.
+        
+        - **`betas`** (*type: tuple[float, float], default: `BETAS`*):  
+          Beta coefficients for the Adam optimizer.
+        
+        - **`sinkhorn_lambda`** (*type: float, default: 0.1*):  
+          Parameter for Sinkhorn distance computation in self-distillation.
+        
+        - **`sinkhorn_iter`** (*type: int, default: 4*):  
+          Number of iterations for Sinkhorn distance computation.
+        
+        - **`ii_coeff`** (*type: float, default: 1.0*):  
+          Coefficient for computing teacher targets for self-distillation.
+        
+        - **`tt_coeff`** (*type: float, default: 1.0*):  
+          Coefficient for computing teacher targets for self-distillation.
+        
+        - **`remove_diag`** (*type: bool, default: False*):  
+          Flag to remove diagonal elements during teacher target computation.
+        
+        - **`checkpoint_path`** (*type: str, default: None*):  
+          Path to the CLIP model checkpoint.
+        
+        - **`use_sentence_bert_as_teacher`** (*type: bool, default: False*):  
+          Use Sentence-BERT as a teacher model.
+        
+        - **`freeze_sentence_bert`** (*type: bool, default: True*):  
+          Whether to freeze the Sentence-BERT model during training.
+        
+        - **`sentence_bert_model`** (*type: str, default: None*):  
+          Path or name of the Sentence-BERT model to use as a teacher.
+        
+        - **`use_sigmoid_loss`** (*type: bool, default: False*):  
+          Use a sigmoid-based loss function.
 
-   2. Here are the available **data parameters**:
+   3. Here are the available **data parameters**:
       
-      - `--data.annotations_files (Union[str, List[str]])`: Path or Paths to the file(s) containing the annotations.
+        - **`annotations_files`** (*type: Union[str, List[str]]*):  
+          Path(s) to the annotation file(s).
+    
+        - **`img_dirs`** (*type: Union[str, List[str]]*):  
+          Path(s) to the image directory/directories.
         
-      - `--data.img_dirs (Union[str, List[str]])`: Directory or Directories with all the images.
+        - **`additional_test_annotation_files`** (*type: Optional[List[Optional[str]]], default: None*):  
+          Additional annotation files for testing.
         
-      - `--data.additional_test_annotation_files (Optional[List[Optional[str]]])`: Optional list of paths to additional
-                test annotation files. Defaults to None.
+        - **`img_transform`** (*type: None, default: None*):  
+          Transformation applied to image data.
         
-      - `--data.img_transform (callable, optional)`: Optional transforms to be applied on an image for data augmentation.
-                If None, random transformations will be applied. Defaults to None.
+        - **`target_transform`** (*type: None, default: None*):  
+          Transformation applied to target/label data.
         
-      - `--data.target_transform (callable, optional)`: Optional transforms to be applied on a caption. Defaults to None.
+        - **`train_split_percentage`** (*type: float, default: `TRAIN_SPLIT_PERCENTAGE`*):  
+          Percentage of data used for training split.
         
-      - `--data.train_split_percentage (float)`: The training set split percentage. If smaller than 100, the remaining
-                will be divided between the validation and test set. Defaults to TRAIN_SPLIT_PERCENTAGE.
+        - **`val_split_percentage`** (*type: float, default: `VAL_SPLIT_PERCENTAGE`*):  
+          Percentage of data used for validation split.
         
-      - `--data.val_split_percentage (float)`: The validation set split percentage. If train_split + val_split is smaller
-                than 100, the remaining will be used to split the train set. Defaults to VAL_SPLIT_PERCENTAGE.
+        - **`batch_size`** (*type: int, default: `BATCH_SIZE`*):  
+          Number of samples per batch.
         
-      - `--data.batch_size (int)`: The batch size of each dataloader. Defaults to BATCH_SIZE.
+        - **`num_workers`** (*type: int, default: 0*):  
+          Number of worker threads for data loading.
         
-      - `--data.num_workers (int,` optional): The number of workers in the DataLoader. Defaults to 0.
+        - **`augment_image_data`** (*type: bool, default: False*):  
+          Whether to apply data augmentation to images.
         
-      - `--data.augment_image_data (bool)`: Whether to apply transforms to augment image data. Defaults to False.
+        - **`augment_text_data`** (*type: bool, default: False*):  
+          Whether to apply data augmentation to text.
         
-      - `--data.augment_text_data (bool)`: Whether to apply transforms to augment text data. Defaults to False.
+        - **`shuffle`** (*type: bool, default: False*):  
+          Whether to shuffle the dataset during loading.
         
-      - `--data.shuffle (bool, optional)`: Whether to have shuffling behavior during sampling. Defaults to False.
+        - **`processor`** (*type: str, default: None*):  
+          Processor to use for data preprocessing.
         
-      - `--data.processor (str)`: The CLIPProcessor to preprocess the batches. Defaults to None.
-        
-      - `--data.use_gpt2_tokenizer (bool)`: Whether to use GPT2-Tokenizer for tokenization. True if training ClipCap.
+        - **`use_gpt2_tokenizer`** (*type: bool, default: False*):  
+          Whether to use the GPT-2 tokenizer for text processing. True if training CLIPCap. 
         
 4. Here is an example command to run this script:
 ```shell
@@ -241,110 +386,157 @@ To train and finetune RSDiX-CLIP, run `train_finetune_clip.py` file with the des
 To train and finetune RSDiX-CLIPCap, run `train_finetune_clip.py` file with the desired parameters. The parameters are mainly classified into **model parameters** and **data parameters**.
    1. Here are the available **model parameters**:
 
-      - `--prefix_length` (type: int): Length of the prefix token used for text generation.
+         - **`prefix_length`** (*type: int*):  
+          The length of the prefix input.
+            
+        - **`clip_length`** (*type: Optional[int], default: None*):  
+          The length of the CLIP feature input.
         
-      - `--clip_length` (type: Optional[int], default: None): Length of the CLIP context window. If None, it uses the default context length.
+        - **`prefix_size`** (*type: int, default: 512*):  
+          The size of the prefix embedding.
         
-      - `--prefix_size` (type: int): Size of the prefix embedding layer.
+        - **`num_layers`** (*type: int, default: 8*):  
+          Number of layers in the transformer.
         
-      - `--num_layers` (type: int): Number of layers for the text-to-text (T2T) mapping.
+        - **`mapping_type`** (*type: MappingType, default: `MappingType.MLP`*):  
+          The type of mapping layer to use.
         
-      - `--mapping_type` (type: MappingType, default: MappingType.MLP): Type of the mapping function (MLP or Linear).
+        - **`dropout_transformer`** (*type: float, default: 0.0*):  
+          Dropout rate applied in the transformer.
         
-      - `--dropout_transformer` (type: float): Dropout rate for the T2T transformer.
+        - **`dropout_gpt2`** (*type: Optional[float], default: None*):  
+          Dropout rate for GPT-2 model layers.
         
-      - `--dropout_gpt2` (type: Optional[float], default: None): Dropout rate for the GPT2-based caption decoder.
+        - **`clipcap_lr`** (*type: float, default: 1e-3*):  
+          Learning rate for the ClipCap model.
         
-      - `--clipcap_lr` (type: float, default: 1e-3): Learning rate for the CLIPCap model.
+        - **`clipcap_weight_decay`** (*type: float, default: 0.1*):  
+          Weight decay for the ClipCap optimizer.
         
-      - `--clipcap_weight_decay` (type: float, default: 0.1): Weight decay for the CLIPCap model.
+        - **`clipcap_warmup_steps`** (*type: int, default: 5000*):  
+          Number of warm-up steps for ClipCap learning rate scheduler.
         
-      - `--clipcap_warmup_steps` (type: int, default: 5000): Number of warm-up steps for learning rate scheduling.
+        - **`model`** (*type: str, default: "openai/clip-vit-base-patch32"*):  
+          The pre-trained CLIP model to use.
         
-      - `--model` (type: str, default: "openai/clip-vit-base-patch32"): Pre-trained CLIP model to use.
+        - **`lr`** (*type: Optional[float], default: None*):  
+          Learning rate for the optimizer.
         
-      - `--lr` (type: Optional[float]): Learning rate for the CLIP model.
+        - **`alpha`** (*type: float, default: 0.5*):  
+          Trade-off factor between contrastive loss and self-distillation loss.
         
-      - `--alpha` (type: float, default: 0.5): Alpha parameter for the Sinkhorn-Knopp algorithm.
+        - **`ema_decay`** (*type: float, default: 0.999*):  
+          Exponential Moving Average (EMA) decay factor for the teacher model.
         
-      - `--ema_decay` (type: float, default: 0.999): Exponential moving average decay for model parameters.
+        - **`weight_decay`** (*type: float, default: 0.1*):  
+          Weight decay applied to model parameters.
         
-      - `--weight_decay` (type: float, default: 0.1): Weight decay for the optimizer.
+        - **`start_factor`** (*type: float, default: 0.3333333333333333*):  
+          Starting factor for linear warm-up in learning rate scheduling.
         
-      - `--start_factor` (type: float, default: 0.3333333333333333): Start factor for learning rate scheduling.
+        - **`end_factor`** (*type: float, default: 1.0*):  
+          Ending factor for linear warm-up in learning rate scheduling.
         
-      - `--end_factor` (type: float, default: 1.0): End factor for learning rate scheduling.
+        - **`total_iters`** (*type: int, default: 5*):  
+          Total iterations for linear warm-up.
         
-      - `--total_iters` (type: int, default: 5): Total number of iterations for learning rate scheduling.
+        - **`use_warmup`** (*type: str, default: "cosine"*):  
+          Warm-up strategy for learning rate scheduling, options are "cosine" or "linear."
         
-      - `--use_warmup` (type: str, default: "cosine"): Warm-up strategy for the learning rate scheduler.
+        - **`warmup_steps`** (*type: int, default: 0*):  
+          Number of warm-up steps.
         
-      - `--warmup_steps` (type: int, default: 0): Number of warm-up steps for learning rate scheduling.
+        - **`eps`** (*type: float, default: 1e-08*):  
+          Small epsilon value to prevent division by zero during normalization.
         
-      - `--eps` (type: float, default: 1e-08): Epsilon value for numerical stability in Sinkhorn-Knopp.
+        - **`betas`** (*type: tuple[float, float], default: BETAS*):  
+          Beta coefficients for the Adam optimizer.
         
-      - `--betas` (type: tuple[float, float], default: BETAS): Beta values for the AdamW optimizer. Control exponential moving averages of gradient and squared gradient.
+        - **`sinkhorn_lambda`** (*type: float, default: 0.1*):  
+          Parameter for Sinkhorn distance computation in self-distillation.
         
-      - `--sinkhorn_lambda` (type: float, default: 0.1): Lambda parameter for the Sinkhorn-Knopp algorithm.
+        - **`sinkhorn_iter`** (*type: int, default: 4*):  
+          Number of iterations for Sinkhorn distance computation.
         
-      - `--sinkhorn_iter` (type: int, default: 4): Number of iterations for Sinkhorn-Knopp.
+        - **`ii_coeff`** (*type: float, default: 1.0*):  
+          Coefficient for inter-instance teacher target computation.
         
-      - `--ii_coeff` (type: float, default: 1.0): Coefficient for the image-image matching loss.
+        - **`tt_coeff`** (*type: float, default: 1.0*):  
+          Coefficient for teacher-target computation.
         
-      - `--tt_coeff` (type: float, default: 1.0): Coefficient for the text-text matching loss.
+        - **`remove_diag`** (*type: bool, default: False*):  
+          Flag to remove diagonal elements in teacher-target computation.
         
-      - `--remove_diag` (type: bool, default: False): Whether to remove the diagonal of the similarity matrix.
+        - **`checkpoint_path`** (*type: str, default: None*):  
+          Path to the general model checkpoint.
         
-      - `--checkpoint_path` (type: str): Path to the model checkpoint.
+        - **`clip_checkpoint_path`** (*type: str, default: None*):  
+          Path to the CLIP model checkpoint.
         
-      - `--clip_checkpoint_path` (type: str): Path to the CLIP model checkpoint.
+        - **`clipcap_checkpoint_path`** (*type: str, default: None*):  
+          Path to the ClipCap model checkpoint.
         
-      - `--clipcap_checkpoint_path` (type: str): Path to the CLIPCap model checkpoint.
+        - **`metrics`** (*type: Union[str, list], default: `ALLOWED_METRICS`*):  
+          List of metrics to evaluate the model.
         
-      - `--metrics` (type: Union[str, list]): Evaluation metrics for the model.
+        - **`use_beam_search`** (*type: bool, default: False*):  
+          Whether to use beam search during inference.
         
-      - `--use_beam_search` (type: bool, default: False): Whether to use beam search for text generation.
+        - **`gpt_model`** (*type: str, default: "gpt2"*):  
+          The GPT model to use for captioning.
         
-      - `--gpt_model` (type: str, default: "gpt2"): The GPT-2 model to use to generate the captions.
+        - **`pad_token`** (*type: str, default: None*):  
+          Padding token to use during inference.
         
-      - `--pad_token` (type: str): Token used for padding sequences. If None, the EOS token is used for padding.
+        - **`every_n_batches`** (*type: int, default: 10*):  
+          Frequency of evaluation or logging in terms of number of batches.
         
-      - `--every_n_batches` (type: int, default: 10): Frequency of computing evaluation metrics.
-        
-      - `--freeze_clip_encoder` (type: bool, default: True): Whether to freeze the CLIP encoder during training.
+        - **`freeze_clip_encoder`** (*type: bool, default: True*):  
+          Whether to freeze the weights of the CLIP encoder.
     
 2. Here are the available **data parameters**:
        
-   - `--data.annotations_files (Union[str, List[str]])`: Path or Paths to the file(s) containing the annotations.
-  
-   - `--data.img_dirs (Union[str, List[str]])`: Directory or Directories with all the images.
-     
-   - `--data.additional_test_annotation_files (Optional[List[Optional[str]]])`: Optional list of paths to additional
-               test annotation files. Defaults to None.
-   
-   - `--data.img_transform (callable, optional)`: Optional transforms to be applied on an image for data augmentation.
-               If None, random transformations will be applied. Defaults to None.
-   
-   - `--data.target_transform (callable, optional)`: Optional transforms to be applied on a caption. Defaults to None.
-     
-   - `--data.train_split_percentage (float)`: The training set split percentage. If smaller than 100, the remaining
-               will be divided between the validation and test set. Defaults to 80.
-   
-   - `--data.val_split_percentage (float)`: The validation set split percentage. If train_split + val_split is smaller
-               than 100, the remaining will be used to split the train set. Defaults to 10.
-   
-   - `--data.batch_size (int)`: The batch size of each dataloader. Defaults to 512.
-     
-   - `--data.num_workers (int, optional)`: The number of workers in the DataLoader. Defaults to 0.
-     
-   - `--data.augment_image_data (bool)`: Whether to apply transforms to augment image data. Defaults to False.
-     
-   - `--data.augment_text_data (bool)`: Whether to apply transforms to augment text data. Defaults to False.
-     
-   - `--data.shuffle (bool, optional)`: Whether to have shuffling behavior during sampling. Defaults to False.
-   - `--data.processor (str)`: The CLIPProcessor to preprocess the batches. Defaults to None.
-     
-   - `--data.use_gpt2_tokenizer (bool)`: Whether to use GPT2-Tokenizer for tokenization. True if training ClipCap.
+    - **`annotations_files`** (*type: Union[str, List[str]]*):  
+          Path(s) to the annotation file(s).
+    
+    - **`img_dirs`** (*type: Union[str, List[str]]*):  
+          Path(s) to the image directory/directories.
+        
+    - **`additional_test_annotation_files`** (*type: Optional[List[Optional[str]]], default: None*):  
+      Additional annotation files for testing.
+    
+    - **`img_transform`** (*type: None, default: None*):  
+      Transformation applied to image data.
+    
+    - **`target_transform`** (*type: None, default: None*):  
+      Transformation applied to target/label data.
+    
+    - **`train_split_percentage`** (*type: float, default: `TRAIN_SPLIT_PERCENTAGE`*):  
+      Percentage of data used for training split.
+    
+    - **`val_split_percentage`** (*type: float, default: `VAL_SPLIT_PERCENTAGE`*):  
+      Percentage of data used for validation split.
+    
+    - **`batch_size`** (*type: int, default: `BATCH_SIZE`*):  
+      Number of samples per batch.
+    
+    - **`num_workers`** (*type: int, default: 0*):  
+      Number of worker threads for data loading.
+    
+    - **`augment_image_data`** (*type: bool, default: False*):  
+      Whether to apply data augmentation to images.
+    
+    - **`augment_text_data`** (*type: bool, default: False*):  
+      Whether to apply data augmentation to text.
+    
+    - **`shuffle`** (*type: bool, default: False*):  
+      Whether to shuffle the dataset during loading.
+    
+    - **`processor`** (*type: str, default: None*):  
+      Processor to use for data preprocessing.
+    
+    - **`use_gpt2_tokenizer`** (*type: bool, default: False*):  
+      Whether to use the GPT-2 tokenizer for text processing. True if training CLICap. 
      
 4. Here is an example command to run this script:
 ```shell
@@ -365,21 +557,30 @@ To train and finetune one of the two models leveraging bayesian optimization, fo
 1. Ensure to have a `grid_file.yaml` that adheres to the structure shown in `clip_grid.yaml` and `clipcap_grid.yaml` files. Please note that the values of the parameters you want to finetune with must be **comma seprated values with no white spaces**.
    
 2. Run `bayesian_optimization.py` with the desired parameters: 
-- `--default_root_dir` (str): The root directory for the experiment. Default is the current working directory.
-  
-- `--logs_dir` (str): The directory where logs are stored. Default is "lightning_logs".
 
-- `--grid_file` (str): Path to the YAML grid file specifying hyperparameter ranges. Default is "clip_grid.yaml".
+- **`default_root_dir`** (*type: str, default: `os.getcwd()`*):  
+  The root directory for storing outputs, defaulting to the current working directory.
 
-- `--n_iter` (int): Number of optimization iterations. Default is 10.
+- **`logs_dir`** (*type: str, default: "lightning_logs"*):  
+  Directory where the training logs will be stored. Default is `lightning_logs`.
 
-- `--n_init_points` (int): Number of initial points for Bayesian Optimization. Default is 5.
+- **`grid_file`** (*type: str, default: "clip_grid.yaml"*):  
+  Path to the grid file for Bayesian optimization. Defaults to `clip_grid.yaml`.
 
-- `--random_state` (int): Random seed for reproducibility. Default is 42.
+- **`n_iter`** (*type: int, default: 10*):  
+  The number of iterations for optimization or training.
 
-- `--bayesian_runs_export_file` (str): Path to the JSON file to export Bayesian optimization results. Default is "bayesian_runs.json".
+- **`n_init_points`** (*type: int, default: 5*):  
+  The number of initial points to sample for Bayesian optimization.
 
-- `--bayesian_runs_import_file` (str): Path to the JSON file to import previous Bayesian optimization results. Default is None.
+- **`random_state`** (*type: int, default: 42*):  
+  Random seed for reproducibility.
+
+- **`bayesian_runs_export_file`** (*type: str, default: "bayesian_runs.json"*):  
+  Path to export the results of the Bayesian optimization runs. Defaults to `bayesian_runs.json`.
+
+- **`bayesian_runs_import_file`** (*type: str, default: None*):  
+  Path to import previously saved Bayesian optimization results.
 
 3. Alternatively, you can run `grid_search.py` (or `grid_search.sh` if you are using a Linux-based system) to perform classic **grid search**. 
 
@@ -388,53 +589,84 @@ To evaluate the models, please check out the sections below.
 ## Evaluating RSDiX-CLIP
 To evaluate the RSDiX-CLIP model, run `eval_clip.py` with the desired parameters: 
 
-- `--scores_dir (str)`: Path where the model's results directory will be created. Defaults to "eval_results".
-  
-- `--scores_file (str):` Path where the model's results will be saved. Defaults to "scores.tsv".
-  
-- `--model_pth (str)`: Path to the model checkpoint to evaluate.
-  
-- `--processor (str)`: CLIPProcessor to use to preprocess data. Defaults to "openai/clip-vit-base-patch32".
-  
-- `--annotations_file (str)`: Annotations file of the dataset to evaluate the model on.
-  
-- `--img_dir (str)`: Directory containing the images of dataset to evaluate the model on.
+- **`scores_dir`** (*type: str, default: `os.path.join(os.getcwd(), "eval_results")`*):  
+  Directory to save evaluation results.
+
+- **`scores_file`** (*type: str, default: "scores.tsv"*):  
+  Name of the file where evaluation scores will be saved.
+
+- **`model_pth`** (*type: str, required: True*):  
+  Path to the model to evaluate.
+
+- **`processor`** (*type: str, default: "openai/clip-vit-base-patch32"*):  
+  Processor (e.g., `CLIPProcessor.from_pretrained`) used to preprocess data.
+
+- **`annotations_file`** (*type: str, required: True*):  
+  Path to the annotations file containing image-caption pairs.
+
+- **`imgs_dir`** (*type: str, required: True*):  
+  Directory containing images for evaluation.
+
+- **`model_basename`** (*type: str, default: None*):  
+  Optional basename of the model (if applicable).
 
 ## Evaluating RSDiX-CLIPCap
 To evaluate the RSDiX-CLIPCap model, run `eval_clipcap.py` with the desired parameters: 
 
-- `--seed` (int): Global seed for reproducibility. Default is 42.
+- **`seed`** (*type: int, default: 42*):  
+  Random seed for reproducibility.
 
-- `--scores_dir` (str): Directory to store evaluation scores. Default is "eval_results".
+- **`scores_dir`** (*type: str, default: `os.path.join(os.getcwd(), "eval_results")`*):  
+  Directory where evaluation scores will be stored.
 
-- `--scores_file` (str): Name of the scores file. It will be saved under the `scores_dir`. Default is "clip_cap_scores.tsv".
+- **`scores_file`** (*type: str, default: "clip_cap_scores.tsv"*):  
+  Name of the file where evaluation scores will be saved. Located in the directory specified by `scores_dir`.
 
-- `--model_pth` (str): Path of the model checkpoint to evaluate. Required.
+- **`model_pth`** (*type: str, default: None*):  
+  Path to the model that will be evaluated.
 
-- `--model_basename` (str): The model basename that will be saved along with the scores. Default is None.
+- **`model_basename`** (*type: str, default: None*):  
+  Basename for the model, used for naming the saved evaluation scores.
 
-- `--processor` (str): Processor from CLIPProcessor.from_pretrained to preprocess data. Default is "openai/clip-vit-base-patch32".
+- **`processor`** (*type: str, default: "openai/clip-vit-base-patch32"*):  
+  Processor (e.g., `CLIPProcessor.from_pretrained`) used for data preprocessing.
 
-- `--use_beam_search` (bool): Whether to use beam search for text generation. Default is False.
+- **`use_beam_search`** (*type: bool, default: False*):  
+  Flag to indicate whether beam search should be used during evaluation.
 
-- `--metrics` (List[str]): List of evaluation metrics to compute (e.g., METEOR, SBERT_SIM, ROUGE_L, BLEU1, BLEU2, etc.).
-  Default includes all allowed metrics.
+- **`metrics`** (*type: list of str, default: `ALLOWED_METRICS`*):  
+  The metrics to be used during evaluation. If not provided, the default `ALLOWED_METRICS` will be used.
 
-- `--no_splits` (bool): If set, disables splitting of datasets. Default is False.
+- **`no_splits`** (*type: bool, default: False*):  
+  Flag to disable splitting the dataset during evaluation.
 
-- `--no_evaluation` (bool): If set, skips the evaluation step. Default is False.
+- **`no_evaluation`** (*type: bool, default: False*):  
+  Flag to skip evaluation.
 
-- `--export_captions_file` (str): Path to export generated captions in JSON format. Default is None.
+- **`export_captions_file`** (*type: str, default: None*):  
+  Path to export the generated captions in a file.
 
-- `--import_captions_file` (str): Path to import captions for evaluation from a JSON file. Default is None.
+- **`import_captions_file`** (*type: str, default: None*):  
+  Path to import previously generated captions.
 
-- `--annotations_files` (List[str]): List of paths to annotation files for different datasets.
-  Default includes datasets like RSICD, UCMD, RSITMD, S2LCD, NWPU-Captions.
+- **`annotations_files`** (*type: list of str, default:*):  
+  List of annotation files for evaluation, by default:
+  - `./data/RSICD/dataset_rsicd.json`
+  - `./data/UCMD/dataset_ucmd.json`
+  - `./data/RSITMD/dataset_rsitmd.json`
+  - `./data/NAIS/dataset_nais.json`
+  - `./data/NWPU-Captions/dataset_nwpu.json`
 
-- `--img_dirs` (List[str]): List of paths to image directories corresponding to the annotation files.
-  Default includes directories for datasets like RSICD, UCMD, RSITMD, S2LCD, NWPU-Captions.
+- **`img_dirs`** (*type: list of str, default:*):  
+  List of image directories for evaluation, by default:
+  - `./data/RSICD/RSICD_images`
+  - `./data/UCMD/UCMD_images`
+  - `./data/RSITMD/RSITMD_images`
+  - `./data/NAIS/NAIS_images`
+  - `./data/NWPU-Captions/NWPU-Captions_images`
 
-- `--splits` (List[str]): List of splits to evaluate for each dataset. Default is ["val", "test", "test", "test", "test"].
+- **`splits`** (*type: list of str, default: ["test", "test", "test", "test", "test"]*):  
+  List of dataset splits to use for evaluation, by default using "test" for each dataset.
 
 
 ### Warnings 
@@ -455,33 +687,48 @@ Try changing the locale settings to **US**. For more information, follow [here](
 ## Running the RSDiX-CLIP Remote Sensing Inference Script
 To extract image embeddings using the CLIP Remote Sensing model, run `clip_inference.py` with the desired parameters:
 
-- `--annotations_file (str)`: Annotations file of the dataset to evaluate the model on.
+- **`annotations_file`** (*type: str, required: True*):  
+  Path to the annotations file containing image-caption pairs.
 
-- `--img_dir (str)`: Directory containing the images of dataset  to evaluate the model on.
+- **`img_dir`** (*type: str, required: True*):  
+  Directory containing the images to process.
 
-- `--checkpoint_path (str)` : Path to the trained CLIP weights.
+- **`checkpoint_path`** (*type: str, required: True*):  
+  Path to the model checkpoint to load for inference.
 
-- `--out_path (str)` The path to store the generated captions in JSON format. Defaults to "_inferenceimages/".
+- **`processor`** (*type: str, default: "openai/clip-vit-base-patch32"*):  
+  The processor (e.g., `CLIPProcessor.from_pretrained`) used to preprocess data.
 
-- `--processor (str)`: Specify the CLIPProcessor model version to use for preprocessing data. Defaults to "openai/clip-vit-base-patch32".
+- **`out_path`** (*type: str, default: "_clipinferenceimages/"*):  
+  Path to save the generated captions in JSON format.
 
 ## Running the RSDiX-CLIPCap Remote Sensing Inference Script
 To generate captions using the RSDiX-CLIPCap trained model, run `clipcap_inference.py` with the desired parameters. This script will generate captions using the trained model and the specified parameters:
-- `--annotations_file (str)`: Annotations file of the dataset to evaluate the model on.
+- **`annotations_file`** (*type: str, required: True*):  
+  Path to the annotations file containing image-caption pairs.
 
-- `--img_dir (str)`: Directory containing the images of dataset  to evaluate the model on.
+- **`img_dir`** (*type: str, required: True*):  
+  Directory containing the images to process.
 
-- `--checkpoint_path (str)` : Path to the trained CLIPCap weights.
+- **`checkpoint_path`** (*type: str, required: True*):  
+  Path to the model checkpoint to load for inference.
 
-- `--out_path (str)` The path to store the generated captions in JSON format. Defaults to "_inferenceimages/".
+- **`processor`** (*type: str, default: "openai/clip-vit-base-patch32"*):  
+  The processor (e.g., `CLIPProcessor.from_pretrained`) used to preprocess data.
 
-- `--processor (str)`: Specify the CLIPProcessor model version to use for preprocessing data. Defaults to "openai/clip-vit-base-patch32".
+- **`out_path`** (*type: str, default: "_inferenceimages/"*):  
+  Path to save the generated captions in JSON format.
 
-- `--use_beam_search (bool)`: Specify whether to use beam search during inference (not using will use top-p sampling, which seems to work better with this model).
+- **`use_beam_search`** (*action: store_true*):  
+  Whether to use beam search during inference (Setting it to *False* will use top-p sampling, which seems to work better for this model).
 
 
 # Acknowledgements and references
-A special thank must be delivered to the train-CLIP[^1], CLIP-rsicd[^2] and CapDec[^3] repositories contributors, which have been a fundamental building block of this project's codebase.
+The authors would like to sincerely thank the NAIS Solutions staff for helping with the realization of the S2LCD dataset.
+
+This research was partly supported in part by PON Campania project AIWEO - Artificial Intelligence Wizard for Earth Observation, CUP: B67H22002780007, SURF: 22012BP000000049. 
+
+Furthermore, a special thank must be delivered to the train-CLIP[^1], CLIP-rsicd[^2] and CapDec[^3] repositories contributors, which have been a fundamental building block of this project's codebase.
 
 [^1]: [train-CLIP](https://github.com/Zasder3/train-CLIP)
 [^2]: [CLIP-rsicd](https://github.com/arampacha/CLIP-rsicd)
