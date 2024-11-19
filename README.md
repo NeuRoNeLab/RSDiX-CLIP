@@ -1,5 +1,5 @@
 <p align="center">
-    <img width="550" src="https://github.com/angelonazzaro/remote-sensing-captioning-transformer/assets/58223071/c4c67028-9474-4ebb-9670-f001b2f207f6" alt="NeuRoNeLab logo">
+    <img width="550" src="https://github.com/user-attachments/assets/e31fc937-934a-44ae-9797-1d4c2a3fd15d" alt="NeuRoNeLab logo">
 </p>
 <h3 align="center">
  RSDiX: Addressing Intra-Class Similarity in Remote Sensing with Self-Distillation
@@ -212,9 +212,9 @@ Average performances of our RSDiX-CLIPCap-SBERT models. Columns represent averag
 
 
 # Models' weights 
-Trained model weights can be found at the following MEGA link:
+Trained model weights can be found at the following Google Drive link:
 
-   - https://mega.nz/folder/N2di0BKZ#KhNe70VIg9a2mjoopo6A9A
+   - [https://drive.google.com/drive/folders/16XTxitLDzO4sPiq3P4DxyT8ib6KpIJB9?usp=sharing](https://drive.google.com/drive/folders/16XTxitLDzO4sPiq3P4DxyT8ib6KpIJB9?usp=sharing)
 
 Specifically:
    
