@@ -2,10 +2,10 @@
     <img width="550" src="https://github.com/user-attachments/assets/e31fc937-934a-44ae-9797-1d4c2a3fd15d" alt="NeuRoNeLab logo">
 </p>
 <h3 align="center">
- RSDiX: Addressing Intra-Class Similarity in Remote Sensing with Self-Distillation
+ RSDiX: Lightweight and Data-Efficient VLMs for Remote Sensing through Self-Distillation
 </h3>
 <p align="center">
- Official implementation of the RSDiX: Addressing Intra-Class Similarity in Remote Sensing with Self-Distillation paper. 
+ Official implementation of the RSDiX: Lightweight and Data-Efficient VLMs for Remote Sensing through Self-Distillation paper. 
 </p>
 <p align="center">
  <a href="#"><img src="https://img.shields.io/github/contributors/NeuRoNeLab/remote-sensing-captioning-transformer?style=for-the-badge" alt="Contributors"/></a>
@@ -20,7 +20,7 @@
 
 # Table of Contents
 
-1. [RSDiX: Addressing Intra-Class Similarity in Remote Sensing with Self-Distillation](#rsdix-addressing-intra-class-similarity-in-remote-sensing-with-self-distillation)
+1. [RSDiX: Lightweight and Data-Efficient VLMs for Remote Sensing through Self-Distillation](#rsdix-lightweight-and-data-efficient-vlms-for-remote-sensing-through-self-distillation)
 2. [Datasets](#datasets)
 3. [Data Availability](#data-availablity)
 4. [Results](#results)
@@ -48,15 +48,19 @@
    - [Running the RSDiX-CLIPCap Remote Sensing Inference Script](#running-the-rsdix-clipcap-remote-sensing-inference-script)
 10. [Acknowledgements and references](#acknowledgements-and-references)
 
-# RSDiX: Addressing Intra-Class Similarity in Remote Sensing with Self-Distillation
+# RSDiX: Lightweight and Data-Efficient VLMs for Remote Sensing through Self-Distillation
 
-Remote sensing (RS) imagery serves as a crucial information source for diverse applications, including environmental monitoring, urban planning, defense, and security. Despite facing challenges such as spatial/spectral, temporal variability, or lack of quality annotated data, recent years have witnessed the development of deep learning methods for RS image processing. Such models often integrate linguistic information to enrich semantic understanding, showing potential in tasks such as zero-shot classification, detection, retrieval, and captioning of satellite images, to generate labels or descriptions with limited data. However, existing methods for these tasks encounter limitations, including low-quality captions, poor linguistic variety, similar captions for different images, noisy captions, and unreliable evaluation. In this work, we try to overcome some of these limitations by combining the power of pre-trained models with advanced training techniques such as self-distillation:
+Remote sensing (RS) imagery is an essential tool for various applications such as environmental monitoring, urban planning, and disaster management. Despite its significance, RS tasks such as scene classification and captioning face persistent challenges due to limited annotated data, variability in spatial, spectral, and temporal domains, and the inherent complexity of semantic associations in RS datasets. Moreover, although large-scale image-text RS datasets such as RS5M and SkyScript have been developed, the limited vocabulary used in captions still remains mostly unaddressed. These challenges are further intensified by intra-class similarity (ICS), where similar images share identical or near-identical semantic labels, complicating both classification and captioning tasks. 
 
-1. To tackle the issue of intra-class similarity in RS image datasets, we introduce *RSDiX-CLIP*, a fine-tuned version of CLIP with an additional self-distillation objective. We propose *RSDiX-CLIPCap*, a family of captioning models that use the fine-tuned RSDiX-CLIP encoder and a transformer mapper network from CLIPCap. Our models achieve superior/competitive performance against state-of-the-art (SOTA) methods across multiple zero-shot RS image classification and captioning datasets. Furthermore, we explore the impact of mixed distillation strategies and alternative contrastive learning frameworks, introducing the *RSDiX-CLIP-S-BERT* and *RSDiX-SigLIP* families.
+Notwithstanding these limitations, recent years have witnessed the development of deep learning methods for RS image processing. Encoder-only Vision-Language Models (VLMs), such as CLIP, have been adapted to the RS, with domain-specific techniques such as RemoteCLIP showing promise in tasks like zero-shot classification or retrieval. Currently, with the rapid growth of large-scale encoder-decoder and decoder-only vision-language models (LVLMs) such as LLaVA and Large Language Models (LLMs), RS-specific adaptations like GeoLLaVA have also emerged, showing unprecedented performance on tasks such as RS image captioning or visual question answering. However, this performance leap comes at the expense of very high computational costs, susceptibility to confident hallucinations, data-inefficiency (i.e. reliance on large-scale datasets for effective training), and deployment constraints, due to the majority of these architectures featuring transformer models with tens of billions of parameters. 
 
-2. We present *Sentinel-2 Land-cover Captioning Dataset* (S2LCD), a novel RS captioning dataset with 1533 Sentinel-2 images with several land cover/use and human influence and 7665 wide-vocabulary, detailed captions.
+In contrast, our work focuses on lightweight models with mostly fewer than 1 billion parameters, combining efficient training techniques and compact architectures to address the challenges of ICS and data efficiency in RS captioning. In this work, we try to overcome some of these limitations by combining the power of pre-trained models with advanced training techniques such as self-distillation:
 
-3. We challenge, within the domain of RS images, *N*-gram-based metrics, such as the BLEU score building upon prior research to provide additional evidence of their susceptibility to inherent bias and inaccuracy. A statistical sensitivity/robustness comparison on perturbed captions is used to advocate for more reliable alternative metrics Sentence-BERT-Similarity.
+1. **To tackle the data-efficiency and ICS issues**, we introduce *RSDiX*, a new family of lightweight and RS-specific VLMs. Specifically, we propose *RSDiX-CLIP*, a domain-adapted family of CLIP models, fine-tuned with an additional self-distillation objective based on the OTTER framework, which also helps mitigate ICS in RS datasets and improves the data-efficiency by modeling many-to-many interactions in image-text batches. We also present *RSDiX-CLIPCap*, a domain-specific family of CLIPCap captioning models that use the fine-tuned RSDiX-CLIP encoder. Furthermore, we explore the impact of mixed distillation strategies and alternative contrastive learning frameworks like SigLIP, introducing the *RSDiX-CLIP-S-BERT* and *RSDiX-SigLIP* model families. Our models achieve superior/competitive performance against state-of-the-art (SOTA) methods across multiple zero-shot RS image classification and captioning datasets, while not being trained on large-scale datasets and maintaining a significantly smaller parameter count compared to leading VLMs.
+
+2. **We present the *Sentinel-2 Land-cover Captioning Dataset* (S2LCD)**, a novel RS captioning dataset with 1533 Sentinel-2 images with several land cover/use and human influence and 7665 multifaceted wide-vocabulary captions.
+
+3. **We challenge the use of $N$-gram-based metrics such as BLEU within RS image domains**, based on prior research that exposes their inherent bias and inaccuracy. Through statistical sensitivity/robustness analysis on perturbed captions, we advocate for more reliable metrics like Sentence-BERT-Similarity.
 
 ## Datasets 
 
@@ -78,65 +82,59 @@ Remote sensing (RS) imagery serves as a crucial information source for diverse a
 
 ### RSDiX-CLIP Comparison Results
 
-| Dataset      | RSDiX-CLIP (B/32)    | RSDiX-CLIP (B/16)    | RSDiX-CLIP (L/14)    | RemoteCLIP (B/32) | RemoteCLIP (L/14) | GeoRSCLIP (B/32) | GeoRSCLIP (H/14) | RS-CLIP (B/32) |
-|-------------------|---------|---------|---------|-----------------------|-----------------------|-----------------------|-----------------------|---------------------|
-| RSICD        | **96.00**| 94.40   | 92.90   | -                     | -                     | -                     | -                     | -                   |
-| RSI-CB128    | 27.30   | 35.00   | **38.60**| 24.18                 | 37.22                 | -                     | -                     | -                   |
-| RSI-CB256    | 45.90   | 45.40   | 48.30   | 39.50                 | **52.82**             | -                     | -                     | -                   |
-| WHU-earth    | 65.70   | 75.20   | **78.50**| 63.12                 | 70.83                 | -                     | -                     | -                   |
-| EuroSAT-RGB  | 42.60   | 51.70   | 51.10   | 35.96                 | 59.94                 | 61.49                 | **67.47**             | -                   |
-| MLRSNet      | 65.20   | 71.60   | **73.50**| 59.28                 | 66.32                 | -                     | -                     | -                   |
-| PatternNet   | 59.40   | 67.30   | **72.80**| 57.71                 | 68.75                 | -                     | -                     | -                   |
-| RESISC45     | **93.20**| 94.60   | **95.60**| 70.33                 | 79.84                 | 71.89                 | 73.83                 | 85.44               |
-| AID          | **95.10**| 92.60   | 91.10   | 91.30                 | 87.90                 | 73.72                 | 76.33                 | 79.56               |
-| RSSCN7       | **78.60**| 77.40   | 77.30   | 68.57                 | 72.32                 | -                     | -                     | -                   |
-| OPTIMAL-31   | 96.40   | **98.00**| 95.50   | 77.96                 | 90.05                 | -                     | -                     | -                   |
-| RSC11        | 77.80   | **78.20**| 73.90   | 64.94                 | 74.90                 | -                     | -                     | -                   |
-| WHU-RS19     | **98.40**| 98.30   | 96.30   | 96.12                 | 94.66                 | -                     | -                     | **99.10**           |
-|**Average (sub. A):** 70.47  | 73.78  | **74.60** | 62.41  | 71.30  | -  | -  | -  | -
-|**Average (sub. B):** 76.97  | **79.63**  | 79.27  | 66.19  | 75.89  | 69.03  | 69.54  | -  | -
-|**Average (sub. C):** **95.57**  | 95.17  | 94.33  | 85.92  | 87.47  | -  | -  | 88.03  | -
+| Dataset        | RSDiX-CLIP B/32 | RSDiX-CLIP B/16 | RSDiX-CLIP L/14 | RemoteCLIP B/32 | RemoteCLIP L/14 | GeoRSCLIP B/32 | GeoRSCLIP H/14 | RS-CLIP B/32 | SkyCLIP B/32 | SkyCLIP L/14 |
+|----------------|---------------|---------------|---------------|----------------|----------------|----------------|----------------|--------------|--------------|--------------|
+| RSICD          | **96.00**      | 94.40         | 92.90         | -              | -              | -              | -              | -            | -            | -            |
+| RSI-CB128      | 27.30          | 35.00         | **38.60**     | 24.18           | 37.22           | -              | -              | -            | -            | -            |
+| RSI-CB256      | 45.90          | 45.40         | 48.30         | 39.50           | **52.82**       | -              | -              | -            | 46.20        | 50.09        |
+| WHU-earth      | 65.70          | 75.20         | **78.50**     | 63.12           | 70.83           | -              | -              | -            | -            | -            |
+| EuroSAT-RGB    | 42.60          | 51.70         | 51.10         | 35.96           | 59.94           | 61.49           | **67.47**       | -            | 33.30        | 51.33        |
+| MLRSNet        | 65.20          | 71.60         | **73.50**     | 59.28           | 66.32           | -              | -              | -            | -            | -            |
+| PatternNet     | 59.40          | 67.30         | 72.80         | 57.71           | 68.75           | -              | -              | -            | 72.18        | **80.88**    |
+| RESISC45       | 93.20          | 94.60         | **95.60**     | 70.33           | 79.84           | 71.89           | 73.83           | 85.44        | 66.67        | 70.94        |
+| AID            | **95.10**      | 92.60         | 91.10         | 91.30           | 87.90           | 73.72           | 76.33           | 79.56        | 70.90        | 71.70        |
+| RSSCN7         | **78.60**      | 77.40         | 77.30         | 68.57           | 72.32           | -              | -              | -            | -            | -            |
+| OPTIMAL-31     | 96.40          | **98.00**     | 95.50         | 77.96           | 90.05           | -              | -              | -            | -            | -            |
+| RSC11          | 77.80          | **78.20**     | 73.90         | 64.94           | 74.90           | -              | -              | -            | -            | -            |
+| WHU-RS19       | 98.40          | 98.30         | 96.30         | 96.12           | 94.66           | -              | -              | **99.10**    | -            | -            |
 
-Top-1 accuracy results comparison of our RSDiX-CLIP models with current SOTA methods. $A, B, C$ refer to subsets of datasets on which results are available for RemoteCLIP, GeoRSCLIP and RS-CLIP, respectively.
+### Averages (Subsets)
+| Subset         | RSDiX-CLIP B/32 | RSDiX-CLIP B/16 | RSDiX-CLIP L/14 | RemoteCLIP B/32 | RemoteCLIP L/14 | GeoRSCLIP B/32 | GeoRSCLIP H/14 | RS-CLIP B/32 | SkyCLIP B/32 | SkyCLIP L/14 |
+|----------------|---------------|---------------|---------------|----------------|----------------|----------------|----------------|--------------|--------------|--------------|
+| **Average (sub. A)** | 70.47          | 73.78         | **74.60**     | 62.41           | 71.30           | -              | -              | -            | -            | -            |
+| **Average (sub. B)** | 76.97          | **79.63**     | 79.27         | 66.19           | 75.89           | 69.03           | 69.54           | -            | 56.96        | 64.67        |
+| **Average (sub. C)** | **95.57**      | 95.17         | 94.33         | 85.92           | 87.47           | -              | -              | 88.03        | -            | -            |
+| **Average (sub. D)** | 67.24          | 70.34         | **71.78**     | 58.96           | 69.85           | -              | -              | -            | 57.85        | 64.99        |
+
+
+Top-1 accuracy results comparison of our RSDiX-CLIP models with current SOTA methods. $A, B, C, D$ refer to subsets of datasets on which results are available for RemoteCLIP, GeoRSCLIP, RS-CLIP and SkyCLIP, respectively.
 
 ### RSDiX-CLIPCap Comparison Results
 
-| Model | Dataset | M ↑ | SBS ↑ | S ↑ | R ↑ | B-1 ↑ | B-2 ↑ | B-3 ↑ | B-4 ↑ |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| VLAD-LSTM | RSICD | 0.205 | - | - | 0.433 | 0.500 | 0.320 | 0.232 | 0.178 |
-|  | UCMD | 0.346 | - | - | 0.652 | 0.702 | 0.609 | 0.550 | 0.503 |
-| Text-a-a | RSICD | 0.292 | - | 0.389 | 0.527 | 0.651 | 0.513 | 0.414 | 0.336 |
-|  | UCMD | 0.330 | - | 0.358 | 0.627 | 0.711 | 0.625 | 0.554 | 0.497 |
-| SAT (LAM-TL) | RSICD | 0.330 | - | 0.471 | 0.591 | 0.679 | 0.562 | 0.478 | 0.415 |
-|  | UCMD | 0.488 | - | 0.513 | 0.793 | 0.821 | 0.786 | 0.753 | 0.723 |
-| Adaptive (LAM-TL) | RSICD | 0.326 | - | 0.467 | 0.585 | 0.676 | 0.555 | 0.471 | 0.408 |
-|  | UCMD | 0.510 | - | 0.535 | 0.826 | 0.857 | 0.812 | 0.775 | 0.743 |
-| TCE | RSICD | 0.344 | - | - | 0.669 | 0.761 | 0.636 | 0.547 | 0.479 |
-|  | UCMD | 0.478 | - | - | 0.757 | 0.821 | 0.762 | 0.714 | 0.670 |
-| Word-sentence | RSICD | 0.320 | - | - | 0.626 | 0.724 | 0.586 | 0.493 | 0.425 |
-|  | UCMD | 0.440 | - | - | 0.713 | 0.838 | 0.762 | 0.704 | 0.656 |
-| Recurrent-Attn. | RSICD | 0.363 | - | 0.472 | 0.669 | 0.773 | 0.665 | 0.578 | 0.506 |
-|  | UCMD | 0.457 | - | 0.489 | 0.807 | 0.852 | 0.793 | 0.743 | 0.698 |
-| GVFGA + LSGA | RSICD | 0.329 | - | 0.468 | 0.593 | 0.678 | 0.560 | 0.478 | 0.417 |
-|  | UCMD | 0.444 | - | 0.485 | 0.785 | 0.832 | 0.766 | 0.710 | 0.660 |
-| SVM-D CONC | RSICD | 0.230 | - | - | 0.456 | 0.600 | 0.435 | 0.336 | 0.269 |
-|  | UCMD | 0.370 | - | - | 0.688 | 0.765 | 0.695 | 0.642 | 0.594 |
-| Structured-Attn. | RSICD | 0.329 | - | - | 0.571 | 0.702 | 0.561 | 0.465 | 0.393 |
-|  | UCMD | 0.463 | - | - | 0.814 | 0.854 | 0.804 | 0.757 | 0.715 |
-| JTTS | RSICD | 0.377 | - | 0.488 | 0.682 | 0.789 | 0.680 | 0.589 | 0.514 |
-|  | UCMD | 0.491 | - | 0.523 | 0.836 | 0.870 | 0.822 | 0.779 | 0.738 |
-| CSMLF | RSICD | 0.213 | - | 0.199 | 0.446 | 0.576 | 0.386 | 0.283 | 0.222 |
-|  | UCMD | 0.132 | - | 0.076 | 0.393 | 0.436 | 0.273 | 0.186 | 0.121 |
-|  | NWPU | 0.320 | - | 0.265 | 0.578 | 0.717 | 0.590 | 0.509 | 0.440 |
-| SM-Att+LSTM | RSICD | 0.342 | - | - | 0.580 | 0.750 | 0.631 | 0.538 | 0.459 |
-|  | UCMD | 0.435 | - | - | 0.763 | 0.815 | 0.759 | 0.694 | 0.647 |
-|  | NWPU | 0.330 | - | 0.276 | 0.593 | 0.739 | 0.617 | 0.532 | 0.468 |
-| MLCA-Net | RSICD | 0.351 | - | 0.444 | 0.638 | 0.750 | 0.631 | 0.538 | 0.459 |
-|  | UCMD | 0.435 | - | 0.473 | 0.772 | 0.826 | 0.770 | 0.717 | 0.668 |
-|  | NWPU | 0.337 | - | 0.285 | 0.601 | 0.745 | 0.624 | 0.541 | 0.478 |
-| RSDiX-CLIPCap (best) | RSICD | 0.598 | 0.817 | 0.632 | 0.659 | 0.685 | 0.611 | 0.545 | 0.487 |
-|  | UCMD | 0.800 | 0.859 | 0.639 | 0.797 | 0.828 | 0.806 | 0.781 | 0.744 |
-|  | NWPU | 0.527 | 0.720 | 0.320 | 0.656 | 0.761 | 0.667 | 0.571 | 0.476 |
+| Model                        | Dataset | M ↑   | SBS ↑  | S ↑   | R ↑   | B-1 ↑ | B-2 ↑ | B-3 ↑ | B-4 ↑ |
+|------------------------------|---------|-------|--------|-------|-------|-------|-------|-------|-------|
+| SAT (LAM-TL)                  | RSICD   | 0.330 | -      | 0.471 | 0.591 | 0.679 | 0.562 | 0.478 | 0.415 |
+|                               | UCMD    | 0.488 | -      | 0.513 | 0.793 | 0.821 | 0.786 | 0.753 | 0.723 |
+| Adaptive (LAM-TL)             | RSICD   | 0.326 | -      | 0.467 | 0.585 | 0.676 | 0.555 | 0.471 | 0.408 |
+|                               | UCMD    | 0.510 | -      | 0.535 | 0.826 | 0.857 | 0.812 | 0.775 | 0.743 |
+| TCE                           | RSICD   | 0.344 | -      | -     | 0.669 | 0.761 | 0.636 | 0.547 | 0.479 |
+|                               | UCMD    | 0.478 | -      | -     | 0.757 | 0.821 | 0.762 | 0.714 | 0.670 |
+| Recurrent-Attn.               | RSICD   | 0.363 | -      | 0.472 | 0.669 | 0.773 | 0.665 | 0.578 | 0.506 |
+|                               | UCMD    | 0.457 | -      | 0.489 | 0.807 | 0.852 | 0.793 | 0.743 | 0.698 |
+| GVFGA + LSGA                  | RSICD   | 0.329 | -      | 0.468 | 0.593 | 0.678 | 0.560 | 0.478 | 0.417 |
+|                               | UCMD    | 0.444 | -      | 0.485 | 0.785 | 0.832 | 0.766 | 0.710 | 0.660 |
+| JTTS                          | RSICD   | **0.377** | -      | **0.488** | **0.682** | **0.789** | **0.680** | **0.589** | **0.514** |
+|                               | UCMD    | 0.491 | -      | 0.523 | **0.836** | **0.870** | **0.822** | 0.779 | 0.738 |
+| SM-Att+LSTM                   | RSICD   | 0.342 | -      | -     | 0.580 | 0.750 | 0.631 | 0.538 | 0.459 |
+|                               | UCMD    | 0.435 | -      | -     | 0.763 | 0.815 | 0.759 | 0.694 | 0.647 |
+|                               | NWPU    | 0.330 | -      | 0.276 | 0.593 | 0.739 | 0.617 | 0.532 | 0.468 |
+| MLCA-Net                      | RSICD   | 0.351 | -      | 0.444 | 0.638 | 0.750 | 0.631 | 0.538 | 0.459 |
+|                               | UCMD    | 0.435 | -      | 0.473 | 0.772 | 0.826 | 0.770 | 0.717 | 0.668 |
+|                               | NWPU    | 0.337 | -      | 0.285 | 0.601 | 0.745 | 0.624 | 0.541 | **0.478** |
+| RSDiX-CLIPCap (best)           | RSICD   | **0.598** | **0.817** | **0.632** | 0.659 | 0.685 | 0.611 | 0.545 | 0.487 |
+|                               | UCMD    | **0.800** | **0.859** | **0.639** | 0.797 | 0.828 | 0.806 | **0.781** | **0.744** |
+|                               | NWPU    | **0.527** | **0.720** | **0.320** | **0.656** | **0.761** | **0.667** | **0.571** | 0.476 |
+
 
 Comparison of RSDiX-CLIPCap results with SOTA methods on RSICD, UCMD and NWPU datasets. Scores: METEOR, S-SBERT-Sim, SPICE, ROUGE-L, BLEU-{1, 2, 3, 4}.
 
@@ -215,12 +213,6 @@ Average performances of our RSDiX-CLIPCap-SBERT models. Columns represent averag
 Trained model weights can be found at the following Google Drive link:
 
    - [https://drive.google.com/drive/folders/16XTxitLDzO4sPiq3P4DxyT8ib6KpIJB9?usp=sharing](https://drive.google.com/drive/folders/16XTxitLDzO4sPiq3P4DxyT8ib6KpIJB9?usp=sharing)
-
-Specifically:
-   
-   - The `RSDiX-CLIP` directory contains the weights for the RSDiX-CLIP family.
-
-   - The `RSDiX-CLIPCap` contains the weights for the RSDiX-CLIPCap family.
 
 # Installation Guide
 To install the necessary requirements for the project, please follow the steps below.
