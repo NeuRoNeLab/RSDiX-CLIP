@@ -230,7 +230,7 @@ You may skip this step, but please keep in mind that doing so could potentially 
 ## Cloning the Repository 
 To clone this repository, download and extract the `.zip` project files using the `<Code>` button on the top-right or run the following command in your terminal:
 ```shell 
-git clone https://github.com/NeuRoNeLab/remote-sensing-captioning-transformer.git
+git clone https://github.com/NeuRoNeLab/RSDiX-CLIP.git
 ```
 
 ## Installing Requirements
