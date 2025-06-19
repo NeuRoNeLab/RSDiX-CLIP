@@ -62,6 +62,8 @@ In contrast, our work focuses on lightweight models with mostly fewer than 1 bil
 
 3. **We challenge the use of $N$-gram-based metrics such as BLEU within RS image domains**, based on prior research that exposes their inherent bias and inaccuracy. Through statistical sensitivity/robustness analysis on perturbed captions, we advocate for more reliable metrics like Sentence-BERT-Similarity.
 
+![rsdix-pipeline_page-0001](https://github.com/user-attachments/assets/7b90f831-e321-4652-9ada-3f90014efc34)
+
 ## Datasets 
 
 **RSICD**: One of the largest datasets for RSIC containing RSI collected from Google Earth, Baidu Map, MapABC, and Tianditu. It contains 10,921 remote sensing images with a fixed size of 224 x 224 pixels with various resolutions, each annotated with 5 captions, accounting for 54,605 descriptions in total. The dataset covers a wide range of scenes, objects, and scenarios and has one of the largest diversity rates amongst RSI datasets.
