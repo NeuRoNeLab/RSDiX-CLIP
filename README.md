@@ -16,6 +16,10 @@
  <a href="#"><img src="https://img.shields.io/github/languages/top/NeuRoNeLab/remote-sensing-captioning-transformer?style=for-the-badge" alt="Languages"/></a>
 </p>
 
+<div align="center">
+    <img src="https://github.com/user-attachments/assets/9db84734-f468-4b97-b407-4b03e5b6046d" alt="ICJNN Poster" />
+</div>
+
 <br>
 
 # Table of Contents
