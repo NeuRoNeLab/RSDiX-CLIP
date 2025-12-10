@@ -2,11 +2,12 @@
     <img width="550" src="https://github.com/user-attachments/assets/e31fc937-934a-44ae-9797-1d4c2a3fd15d" alt="NeuRoNeLab logo">
 </p>
 <h3 align="center">
- RSDiX: Lightweight and Data-Efficient VLMs for Remote Sensing through Self-Distillation
+ <a href="https://ieeexplore.ieee.org/document/11228553">RSDiX: Lightweight and Data-Efficient VLMs for Remote Sensing through Self-Distillation</a>
 </h3>
 <p align="center">
- Official implementation of the RSDiX: Lightweight and Data-Efficient VLMs for Remote Sensing through Self-Distillation paper. 
+ Official implementation of the RSDiX: Lightweight and Data-Efficient VLMs for Remote Sensing through Self-Distillation paper, published at <a href="https://2025.ijcnn.org/">ICJNN 2025</a>. 
 </p>
+
 <p align="center">
  <a href="#"><img src="https://img.shields.io/github/contributors/NeuRoNeLab/remote-sensing-captioning-transformer?style=for-the-badge" alt="Contributors"/></a>
  <img src="https://img.shields.io/github/last-commit/NeuRoNeLab/remote-sensing-captioning-transformer?style=for-the-badge" alt="last commit">
@@ -15,7 +16,6 @@
  <a href="#"><img src="https://img.shields.io/badge/PRs-welcome-brightgreen?style=for-the-badge" alt="PRs Welcome"/></a>
  <a href="#"><img src="https://img.shields.io/github/languages/top/NeuRoNeLab/remote-sensing-captioning-transformer?style=for-the-badge" alt="Languages"/></a>
 </p>
-
 <div align="center">
     <img src="https://github.com/user-attachments/assets/9db84734-f468-4b97-b407-4b03e5b6046d" alt="ICJNN Poster" />
 </div>
